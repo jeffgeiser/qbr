@@ -1,0 +1,261 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenlayer Account Engagement</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { font-family: 'Inter', sans-serif; background-color: #fcfcfd; }
+        .donut-logo {
+            background: linear-gradient(to right, #33d4ff, #0076ff) border-box;
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out;
+            mask-composite: exclude;
+        }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body x-data="dashboard()" class="antialiased">
+    <!-- Main Dashboard UI -->
+    <nav class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="relative w-8 h-8 flex items-center justify-center">
+                    <div class="absolute inset-0 rounded-full border-[5px] border-transparent donut-logo"></div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[22px] font-medium text-[#2d3b45] tracking-tight leading-none">zenlayer</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5 leading-none">Engagement Plan</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <input type="text" x-model="search" placeholder="Search accounts..." 
+                           class="bg-slate-50 border-none rounded-full py-2 px-5 text-sm focus:ring-2 focus:ring-blue-100 w-64 transition-all">
+                </div>
+                <button @click="openModal()" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-full text-[13px] font-semibold flex items-center space-x-2 transition-all shadow-sm">
+                    <span>+ New Account</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <div class="mb-10">
+            <h1 class="text-3xl font-bold text-slate-900 mb-1">Account Portfolio</h1>
+            <p class="text-slate-500 text-sm font-medium">Strategic roadmap and quarterly QBR tracking dashboard.</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Accounts</span>
+                <span class="text-2xl font-semibold text-slate-900" x-text="accounts.length"></span>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">QBR Completion Rate</span>
+                <span class="text-2xl font-semibold text-slate-900" x-text="qbrRate() + '%'"></span>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tier 1 Strategic</span>
+                <span class="text-2xl font-semibold text-slate-900" x-text="tier1Count()"></span>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">At Risk Accounts</span>
+                <span class="text-2xl font-semibold text-rose-500" x-text="riskCount()"></span>
+            </div>
+        </div>
+
+        <!-- Tier Filters -->
+        <div class="flex items-center space-x-2 mb-6">
+            <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
+                <button @click="tierFilter = t" 
+                        :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent hover:text-slate-800'"
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
+                        x-text="t"></button>
+            </template>
+        </div>
+
+        <!-- Account Table -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="bg-slate-50/30">
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Tracking</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Settings</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    <template x-for="account in filteredAccounts()" :key="account.id">
+                        <tr class="hover:bg-slate-50/50 transition-colors">
+                            <td class="px-6 py-4">
+                                <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex space-x-1.5">
+                                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                             class="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold uppercase transition-all shadow-sm"
+                                             x-text="q"></div>
+                                    </template>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-600" x-text="account.owner"></td>
+                            <td class="px-6 py-4 text-right">
+                                <button @click="openModal(account)" class="p-1.5 text-slate-400 hover:text-blue-500 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div x-show="showModal" x-cloak class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" @click.away="showModal = false">
+            <div class="p-6 border-b flex justify-between items-center bg-slate-50/50">
+                <h2 class="text-lg font-bold text-slate-900" x-text="editingAccount.id ? 'Edit Account' : 'New Account'"></h2>
+                <button @click="showModal = false" class="p-1 hover:bg-slate-100 rounded-full"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="overflow-y-auto p-8 space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                    <input x-model="editingAccount.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                        <select x-model="editingAccount.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100">
+                            <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                        <input x-model="editingAccount.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                            <button @click="editingAccount.qbrCompletion[q] = !editingAccount.qbrCompletion[q]"
+                                 :class="editingAccount.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                 class="px-3 py-2 rounded-lg text-center text-xs font-bold uppercase transition-all border border-transparent shadow-sm"
+                                 x-text="q"></button>
+                        </template>
+                    </div>
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button @click="saveAccount()" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
+                    <template x-if="editingAccount.id">
+                         <button @click="deleteAccount()" class="bg-rose-50 text-rose-500 px-4 py-3 rounded-xl hover:bg-rose-100 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboard() {
+            return {
+                accounts: [
+                    {
+                        "id": "1",
+                        "name": "Zoom Video Communications Inc.",
+                        "tier": "Tier 1",
+                        "owner": "Carlos",
+                        "status": "Active",
+                        "qbrCompletion": {"q1": false, "q2": false, "q3": false, "q4": false}
+                    },
+                    {
+                        "id": "2",
+                        "name": "Nvidia Corporation",
+                        "tier": "Tier 1",
+                        "owner": "Wade",
+                        "status": "Active",
+                        "qbrCompletion": {"q1": false, "q2": false, "q3": false, "q4": false}
+                    },
+                    {
+                        "id": "3",
+                        "name": "Cisco - Jasper",
+                        "tier": "Tier 1",
+                        "owner": "Josh L.",
+                        "status": "Active",
+                        "qbrCompletion": {"q1": false, "q2": false, "q3": false, "q4": false}
+                    }
+                ],
+                search: '',
+                tierFilter: 'All',
+                showModal: false,
+                editingAccount: { id: '', name: '', tier: 'Tier 2', owner: '', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} },
+                
+                filteredAccounts() {
+                    return this.accounts.filter(acc => {
+                        const matchesSearch = acc.name.toLowerCase().includes(this.search.toLowerCase());
+                        const matchesTier = this.tierFilter === 'All' || acc.tier === this.tierFilter;
+                        return matchesSearch && matchesTier;
+                    });
+                },
+                openModal(acc = null) {
+                    if (acc) {
+                        this.editingAccount = JSON.parse(JSON.stringify(acc));
+                    } else {
+                        this.editingAccount = { id: '', name: '', tier: 'Tier 2', owner: '', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} };
+                    }
+                    this.showModal = true;
+                },
+                saveAccount() {
+                    if (!this.editingAccount.name) return alert('Name is required');
+                    if (this.editingAccount.id) {
+                        const idx = this.accounts.findIndex(a => a.id === this.editingAccount.id);
+                        this.accounts[idx] = JSON.parse(JSON.stringify(this.editingAccount));
+                    } else {
+                        const newAcc = { ...this.editingAccount, id: Date.now().toString() };
+                        this.accounts.push(newAcc);
+                    }
+                    this.showModal = false;
+                },
+                qbrRate() {
+                    if (!this.accounts.length) return 0;
+                    let total = this.accounts.length * 4;
+                    let done = 0;
+                    this.accounts.forEach(a => {
+                        if (a.qbrCompletion.q1) done++;
+                        if (a.qbrCompletion.q2) done++;
+                        if (a.qbrCompletion.q3) done++;
+                        if (a.qbrCompletion.q4) done++;
+                    });
+                    return Math.round((done / total) * 100);
+                },
+                tier1Count() {
+                    return this.accounts.filter(a => a.tier === 'Tier 1').length;
+                },
+                riskCount() {
+                    return this.accounts.filter(a => a.status === 'At Risk').length;
+                },
+                deleteAccount() {
+                    if (confirm('Delete this account permanently?')) {
+                        this.accounts = this.accounts.filter(a => a.id !== this.editingAccount.id);
+                        this.showModal = false;
+                    }
+                }
+            }
+        }
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
