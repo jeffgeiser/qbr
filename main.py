@@ -15,45 +15,36 @@ ACCOUNTS = [
         "name": "Zoom Video Communications Inc.",
         "tier": "Tier 1",
         "owner": "Carlos",
-        "primaryContact": "Lagos Project",
-        "keyContacts": "Eric Yuan (CEO), Kelly Steckelberg (CFO)",
-        "email": "contact@zoom.com",
-        "location": "Global",
-        "annualRevenue": 8807991,
         "healthSentiment": "green",
         "nextQbrDate": "",
-        "notes": "In person.. Dinner preferable Jasper: Lagos project active ($100k MRR)",
-        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False}
+        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False},
+        "keyLearnings": "",
+        "actionItems": [],
+        "contacts": [{"name": "Eric Yuan", "email": "eric@zoom.com"}, {"name": "Kelly Steckelberg", "email": "kelly@zoom.com"}]
     },
     {
         "id": "2",
         "name": "Nvidia Corporation",
         "tier": "Tier 1",
         "owner": "Wade",
-        "primaryContact": "Wade's Contact",
-        "keyContacts": "Jensen Huang (CEO), Colette Kress (CFO)",
-        "email": "info@nvidia.com",
-        "location": "Global",
-        "annualRevenue": 3288080,
         "healthSentiment": "yellow",
         "nextQbrDate": "",
-        "notes": "Strategic hardware alignment",
-        "qbrCompletion": {"q1": True, "q2": False, "q3": False, "q4": False}
+        "qbrCompletion": {"q1": True, "q2": False, "q3": False, "q4": False},
+        "keyLearnings": "Strong interest in expanding GPU allocation for AI workloads.",
+        "actionItems": ["Follow up on pricing proposal", "Schedule technical deep-dive"],
+        "contacts": [{"name": "Jensen Huang", "email": "jensen@nvidia.com"}]
     },
     {
         "id": "3",
         "name": "Cisco - Jasper",
         "tier": "Tier 1",
         "owner": "Josh L.",
-        "primaryContact": "Mike Hayes",
-        "keyContacts": "Chuck Robbins, Maria Martinez (COO)",
-        "email": "mhayes@cisco.com",
-        "location": "NoCal",
-        "annualRevenue": 3210445,
         "healthSentiment": "red",
         "nextQbrDate": "2026-03-15",
-        "notes": "Project active; Umbrella/Webex integration",
-        "qbrCompletion": {"q1": True, "q2": True, "q3": False, "q4": False}
+        "qbrCompletion": {"q1": True, "q2": True, "q3": False, "q4": False},
+        "keyLearnings": "Concerns about latency in APAC region. Need to address before renewal.",
+        "actionItems": ["Review APAC latency metrics", "Prepare renewal proposal", "Schedule exec alignment call"],
+        "contacts": [{"name": "Mike Hayes", "email": "mhayes@cisco.com"}, {"name": "Chuck Robbins", "email": "crobbins@cisco.com"}]
     }
 ]
 
@@ -138,7 +129,15 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Tracking</th>
+                        <th class="px-6 py-4 border-b border-slate-100">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">QBR Tracking</div>
+                            <div class="flex">
+                                <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q1</span>
+                                <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q2</span>
+                                <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q3</span>
+                                <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q4</span>
+                            </div>
+                        </th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
@@ -159,10 +158,12 @@ HTML_TEMPLATE = """
                                 </div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="flex space-x-1.5">
+                                <div class="flex">
                                     <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
-                                             class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                                        <div class="w-6 flex justify-center">
+                                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
+                                                 class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                                        </div>
                                     </template>
                                 </div>
                             </td>
@@ -321,130 +322,230 @@ ACCOUNT_DETAILS_TEMPLATE = """
         </div>
 
         <!-- View Mode -->
-        <div x-show="!isEditing" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                    <p class="text-sm text-slate-900" x-text="account.name"></p>
+        <div x-show="!isEditing" class="space-y-6">
+            <!-- Basic Info Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                        <p class="text-sm text-slate-900" x-text="account.name"></p>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                        <p class="text-sm text-slate-900" x-text="account.owner || 'Unassigned'"></p>
+                    </div>
                 </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                        <p class="text-sm text-slate-900" x-text="account.tier"></p>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                        <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
+                    </div>
+                </div>
+
                 <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
-                    <p class="text-sm text-slate-900" x-text="account.owner || 'Unassigned'"></p>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 rounded-full"
+                             :class="{
+                                 'bg-emerald-500': account.healthSentiment === 'green',
+                                 'bg-amber-400': account.healthSentiment === 'yellow',
+                                 'bg-rose-500': account.healthSentiment === 'red'
+                             }"></div>
+                        <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                    <div class="flex space-x-2">
+                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                 class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
+                                 x-text="q"></div>
+                        </template>
+                    </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
-                    <p class="text-sm text-slate-900" x-text="account.tier"></p>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
-                    <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
-                <div class="flex items-center space-x-2">
-                    <div class="w-3 h-3 rounded-full"
-                         :class="{
-                             'bg-emerald-500': account.healthSentiment === 'green',
-                             'bg-amber-400': account.healthSentiment === 'yellow',
-                             'bg-rose-500': account.healthSentiment === 'red'
-                         }"></div>
-                    <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                <div class="flex space-x-2">
-                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                             class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
-                             x-text="q"></div>
+            <!-- Primary Contacts Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Primary Contacts</label>
+                <div x-show="account.contacts && account.contacts.length > 0" class="space-y-3">
+                    <template x-for="(contact, index) in account.contacts" :key="index">
+                        <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl">
+                            <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-900" x-text="contact.name"></p>
+                                <p class="text-xs text-slate-500" x-text="contact.email"></p>
+                            </div>
+                        </div>
                     </template>
                 </div>
+                <p x-show="!account.contacts || account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet.</p>
+            </div>
+
+            <!-- Key Learnings Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings from Last QBR</label>
+                <p x-show="account.keyLearnings" class="text-sm text-slate-700 whitespace-pre-wrap" x-text="account.keyLearnings"></p>
+                <p x-show="!account.keyLearnings" class="text-sm text-slate-400">No key learnings recorded yet.</p>
+            </div>
+
+            <!-- Action Items Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Next Steps / Action Items</label>
+                <div x-show="account.actionItems && account.actionItems.length > 0" class="space-y-2">
+                    <template x-for="(item, index) in account.actionItems" :key="index">
+                        <div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-xl">
+                            <div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
+                            </div>
+                            <p class="text-sm text-slate-700" x-text="item"></p>
+                        </div>
+                    </template>
+                </div>
+                <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400">No action items recorded yet.</p>
             </div>
         </div>
 
         <!-- Edit Mode -->
-        <form x-show="isEditing" action="/qbr/save" method="POST" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+        <form x-show="isEditing" @submit.prevent="submitForm()" class="space-y-6">
             <input type="hidden" name="id" :value="account.id">
 
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                    <input name="name" x-model="account.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+            <!-- Basic Info Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                        <input name="name" x-model="account.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                        <input name="owner" x-model="account.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
-                    <input name="owner" x-model="account.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                </div>
-            </div>
 
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
-                    <select name="tier" x-model="account.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                        <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
-                    </select>
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                        <select name="tier" x-model="account.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                            <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                        <input type="date" name="next_qbr_date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
-                    <input type="date" name="next_qbr_date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                </div>
-            </div>
 
-            <div>
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
-                <div class="flex space-x-3">
-                    <label class="cursor-pointer">
-                        <input type="radio" name="health_sentiment" value="green" x-model="account.healthSentiment" class="hidden">
-                        <div :class="account.healthSentiment === 'green' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''"
-                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 transition-all">
-                            <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
-                            <span class="text-sm font-medium">Healthy</span>
-                        </div>
-                    </label>
-                    <label class="cursor-pointer">
-                        <input type="radio" name="health_sentiment" value="yellow" x-model="account.healthSentiment" class="hidden">
-                        <div :class="account.healthSentiment === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-2' : ''"
-                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 transition-all">
-                            <div class="w-3 h-3 rounded-full bg-amber-400"></div>
-                            <span class="text-sm font-medium">Concern</span>
-                        </div>
-                    </label>
-                    <label class="cursor-pointer">
-                        <input type="radio" name="health_sentiment" value="red" x-model="account.healthSentiment" class="hidden">
-                        <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
-                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
-                            <div class="w-3 h-3 rounded-full bg-rose-500"></div>
-                            <span class="text-sm font-medium">At Risk</span>
-                        </div>
-                    </label>
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                <div class="grid grid-cols-4 gap-3">
-                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                    <div class="flex space-x-3">
                         <label class="cursor-pointer">
-                            <input type="checkbox" :name="q" x-model="account.qbrCompletion[q]" class="hidden">
-                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                 class="px-4 py-3 rounded-xl text-center text-sm font-bold uppercase transition-all"
-                                 x-text="q"></div>
+                            <input type="radio" name="health_sentiment" value="green" x-model="account.healthSentiment" class="hidden">
+                            <div :class="account.healthSentiment === 'green' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''"
+                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 transition-all">
+                                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                <span class="text-sm font-medium">Healthy</span>
+                            </div>
                         </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="health_sentiment" value="yellow" x-model="account.healthSentiment" class="hidden">
+                            <div :class="account.healthSentiment === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-2' : ''"
+                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 transition-all">
+                                <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                                <span class="text-sm font-medium">Concern</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="health_sentiment" value="red" x-model="account.healthSentiment" class="hidden">
+                            <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
+                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
+                                <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                                <span class="text-sm font-medium">At Risk</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                    <div class="grid grid-cols-4 gap-3">
+                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                            <label class="cursor-pointer">
+                                <input type="checkbox" :name="q" x-model="account.qbrCompletion[q]" class="hidden">
+                                <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                     class="px-4 py-3 rounded-xl text-center text-sm font-bold uppercase transition-all"
+                                     x-text="q"></div>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary Contacts Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <div class="flex items-center justify-between mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Primary Contacts</label>
+                    <button type="button" @click="addContact()" class="text-xs font-semibold text-blue-600 hover:text-blue-700">+ Add Contact</button>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="(contact, index) in account.contacts" :key="index">
+                        <div class="flex items-center space-x-3">
+                            <input type="text" x-model="contact.name" placeholder="Name" class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                            <input type="email" x-model="contact.email" placeholder="Email" class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                            <button type="button" @click="removeContact(index)" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
                     </template>
                 </div>
+                <p x-show="account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet. Click "Add Contact" to add one.</p>
             </div>
 
-            <div class="flex space-x-3 pt-6 border-t border-slate-100">
-                <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
-                <button type="button" @click="isEditing = false; resetAccount()" class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all font-semibold">Cancel</button>
-                <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete</button>
+            <!-- Key Learnings Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings from Last QBR</label>
+                <textarea x-model="account.keyLearnings" rows="4" placeholder="Record insights and learnings from the last QBR..."
+                          class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+            </div>
+
+            <!-- Action Items Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <div class="flex items-center justify-between mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Next Steps / Action Items</label>
+                    <button type="button" @click="addActionItem()" class="text-xs font-semibold text-blue-600 hover:text-blue-700">+ Add Item</button>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="(item, index) in account.actionItems" :key="index">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
+                            </div>
+                            <input type="text" x-model="account.actionItems[index]" placeholder="Action item..." class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                            <button type="button" @click="removeActionItem(index)" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                <p x-show="account.actionItems.length === 0" class="text-sm text-slate-400">No action items yet. Click "Add Item" to add one.</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <div class="flex space-x-3">
+                    <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
+                    <button type="button" @click="isEditing = false; resetAccount()" class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all font-semibold">Cancel</button>
+                    <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete</button>
+                </div>
             </div>
         </form>
     </main>
@@ -473,6 +574,13 @@ ACCOUNT_DETAILS_TEMPLATE = """
                 originalAccount: JSON.parse('{{ account_json | safe }}'),
                 isEditing: false,
                 showDeleteConfirm: false,
+
+                init() {
+                    // Ensure arrays exist
+                    if (!this.account.contacts) this.account.contacts = [];
+                    if (!this.account.actionItems) this.account.actionItems = [];
+                    if (!this.account.keyLearnings) this.account.keyLearnings = '';
+                },
                 formatDate(dateStr) {
                     if (!dateStr) return 'TBD';
                     const date = new Date(dateStr);
@@ -480,6 +588,54 @@ ACCOUNT_DETAILS_TEMPLATE = """
                 },
                 resetAccount() {
                     this.account = JSON.parse(JSON.stringify(this.originalAccount));
+                    if (!this.account.contacts) this.account.contacts = [];
+                    if (!this.account.actionItems) this.account.actionItems = [];
+                    if (!this.account.keyLearnings) this.account.keyLearnings = '';
+                },
+                addContact() {
+                    this.account.contacts.push({ name: '', email: '' });
+                },
+                removeContact(index) {
+                    this.account.contacts.splice(index, 1);
+                },
+                addActionItem() {
+                    this.account.actionItems.push('');
+                },
+                removeActionItem(index) {
+                    this.account.actionItems.splice(index, 1);
+                },
+                submitForm() {
+                    // Create form and submit with JSON data
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/qbr/save';
+
+                    const fields = {
+                        id: this.account.id,
+                        name: this.account.name,
+                        tier: this.account.tier,
+                        owner: this.account.owner,
+                        health_sentiment: this.account.healthSentiment,
+                        next_qbr_date: this.account.nextQbrDate,
+                        key_learnings: this.account.keyLearnings,
+                        contacts_json: JSON.stringify(this.account.contacts),
+                        action_items_json: JSON.stringify(this.account.actionItems),
+                        q1: this.account.qbrCompletion.q1 ? 'on' : '',
+                        q2: this.account.qbrCompletion.q2 ? 'on' : '',
+                        q3: this.account.qbrCompletion.q3 ? 'on' : '',
+                        q4: this.account.qbrCompletion.q4 ? 'on' : ''
+                    };
+
+                    for (const [key, value] of Object.entries(fields)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
                 },
                 confirmDelete() {
                     const form = document.createElement('form');
@@ -517,6 +673,9 @@ async def save_account(
     owner: str = Form(""),
     health_sentiment: Optional[str] = Form("green"),
     next_qbr_date: Optional[str] = Form(""),
+    key_learnings: Optional[str] = Form(""),
+    contacts_json: Optional[str] = Form("[]"),
+    action_items_json: Optional[str] = Form("[]"),
     q1: Optional[str] = Form(None),
     q2: Optional[str] = Form(None),
     q3: Optional[str] = Form(None),
@@ -529,6 +688,21 @@ async def save_account(
         "q4": q4 == "on"
     }
 
+    # Parse JSON fields
+    try:
+        contacts = json.loads(contacts_json) if contacts_json else []
+        # Filter out empty contacts
+        contacts = [c for c in contacts if c.get('name') or c.get('email')]
+    except:
+        contacts = []
+
+    try:
+        action_items = json.loads(action_items_json) if action_items_json else []
+        # Filter out empty items
+        action_items = [item for item in action_items if item.strip()]
+    except:
+        action_items = []
+
     if id:
         for acc in ACCOUNTS:
             if acc["id"] == id:
@@ -538,6 +712,9 @@ async def save_account(
                     "owner": owner,
                     "healthSentiment": health_sentiment or "green",
                     "nextQbrDate": next_qbr_date or "",
+                    "keyLearnings": key_learnings or "",
+                    "contacts": contacts,
+                    "actionItems": action_items,
                     "qbrCompletion": qbr
                 })
                 break
@@ -551,6 +728,9 @@ async def save_account(
             "owner": owner,
             "healthSentiment": health_sentiment or "green",
             "nextQbrDate": next_qbr_date or "",
+            "keyLearnings": key_learnings or "",
+            "contacts": contacts,
+            "actionItems": action_items,
             "qbrCompletion": qbr
         }
         ACCOUNTS.append(new_acc)
