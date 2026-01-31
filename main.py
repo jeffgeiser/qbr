@@ -6,7 +6,7 @@ from typing import List, Optional, Dict
 import json
 import uuid
 
-app = FastAPI(rooth_path="/qbr"))
+app = FastAPI(root_path="/qbr"))
 
 # --- Initial Data ---
 ACCOUNTS = [
