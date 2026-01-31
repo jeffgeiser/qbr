@@ -93,25 +93,11 @@ HTML_TEMPLATE = """
 
     <main class="max-w-7xl mx-auto px-6 py-8">
         <div class="mb-10">
-            <h1 class="text-3xl font-bold text-slate-900 mb-1">Account Portfolio</h1>
-            <p class="text-slate-500 text-sm font-medium">Strategic roadmap and quarterly QBR tracking dashboard.</p>
+            <h1 class="text-3xl font-bold text-slate-900 mb-1">Key Account Engagement</h1>
+            <p class="text-slate-500 text-sm font-medium">Quarterly QBR tracking dashboard.</p>
         </div>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Accounts</span>
-                <span class="text-2xl font-semibold text-slate-900" x-text="accounts.length"></span>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Q1 Completion</span>
-                <span class="text-2xl font-semibold text-slate-900" x-text="q1Count() + '%'"></span>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tier 1 Strategic</span>
-                <span class="text-2xl font-semibold text-slate-900" x-text="tier1Count()"></span>
-            </div>
-        </div>
+        
 
         <!-- Tier Filters -->
         <div class="flex items-center space-x-2 mb-6">
