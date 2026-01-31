@@ -202,6 +202,17 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
                 <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Status</label>
+                    <label class="cursor-pointer inline-flex items-center space-x-3">
+                        <input type="checkbox" name="at_risk" x-model="editingAccount.status" true-value="At Risk" false-value="Active" class="hidden">
+                        <div :class="editingAccount.status === 'At Risk' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'"
+                             class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border border-transparent">
+                            At Risk
+                        </div>
+                        <span class="text-sm text-slate-500" x-text="editingAccount.status === 'At Risk' ? 'This account is marked as at risk' : 'Click to mark as at risk'"></span>
+                    </label>
+                </div>
+                <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
                     <div class="grid grid-cols-4 gap-2">
                         <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
@@ -231,7 +242,7 @@ HTML_TEMPLATE = """
                 search: '',
                 tierFilter: 'All',
                 showModal: false,
-                editingAccount: { id: '', name: '', tier: 'Tier 2', owner: '', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} },
+                editingAccount: { id: '', name: '', tier: 'Tier 2', owner: '', status: 'Active', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} },
                 
                 filteredAccounts() {
                     return this.accounts.filter(acc => {
@@ -244,7 +255,7 @@ HTML_TEMPLATE = """
                     if (acc) {
                         this.editingAccount = JSON.parse(JSON.stringify(acc));
                     } else {
-                        this.editingAccount = { id: '', name: '', tier: 'Tier 2', owner: '', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} };
+                        this.editingAccount = { id: '', name: '', tier: 'Tier 2', owner: '', status: 'Active', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} };
                     }
                     this.showModal = true;
                 },
@@ -286,6 +297,7 @@ async def save_account(
     name: str = Form(...),
     tier: str = Form(...),
     owner: str = Form(""),
+    at_risk: Optional[str] = Form(None),
     q1: Optional[str] = Form(None),
     q2: Optional[str] = Form(None),
     q3: Optional[str] = Form(None),
@@ -297,11 +309,12 @@ async def save_account(
         "q3": q3 == "on",
         "q4": q4 == "on"
     }
-    
+    status = "At Risk" if at_risk == "on" else "Active"
+
     if id:
         for acc in ACCOUNTS:
             if acc["id"] == id:
-                acc.update({"name": name, "tier": tier, "owner": owner, "qbrCompletion": qbr})
+                acc.update({"name": name, "tier": tier, "owner": owner, "status": status, "qbrCompletion": qbr})
                 break
     else:
         new_acc = {
@@ -309,7 +322,7 @@ async def save_account(
             "name": name,
             "tier": tier,
             "owner": owner,
-            "status": "Active",
+            "status": status,
             "qbrCompletion": qbr
         }
         ACCOUNTS.append(new_acc)
