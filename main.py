@@ -176,6 +176,23 @@ HTML_TEMPLATE = """
         </div>
     </main>
 
+    <!-- Delete Confirmation Modal -->
+    <div x-show="showDeleteConfirm" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" x-cloak>
+        <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" @click.away="showDeleteConfirm = false">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Account</h3>
+                <p class="text-sm text-slate-500 mb-6">Are you sure you want to delete <span class="font-semibold text-slate-700" x-text="editingAccount.name"></span>? This action cannot be undone.</p>
+                <div class="flex space-x-3">
+                    <button @click="showDeleteConfirm = false" class="flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
+                    <button @click="confirmDelete()" class="flex-1 bg-rose-500 text-white font-semibold py-2.5 rounded-xl hover:bg-rose-600 transition-all">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal -->
     <div x-show="showModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
         <div class="bg-white rounded-[2rem] w-full max-w-xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" @click.away="showModal = false">
@@ -242,6 +259,7 @@ HTML_TEMPLATE = """
                 search: '',
                 tierFilter: 'All',
                 showModal: false,
+                showDeleteConfirm: false,
                 editingAccount: { id: '', name: '', tier: 'Tier 2', owner: '', status: 'Active', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} },
                 
                 filteredAccounts() {
@@ -270,13 +288,14 @@ HTML_TEMPLATE = """
                     return this.accounts.filter(a => a.status === 'At Risk').length;
                 },
                 deleteAccount() {
-                    if (confirm('Delete this account permanently?')) {
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '/qbr/delete/' + this.editingAccount.id;
-                        document.body.appendChild(form);
-                        form.submit();
-                    }
+                    this.showDeleteConfirm = true;
+                },
+                confirmDelete() {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/qbr/delete/' + this.editingAccount.id;
+                    document.body.appendChild(form);
+                    form.submit();
                 }
             }
         }
