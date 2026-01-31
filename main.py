@@ -183,7 +183,7 @@ HTML_TEMPLATE = """
                 <h2 class="text-lg font-bold text-slate-900" x-text="editingAccount.id ? 'Edit Account' : 'New Account'"></h2>
                 <button @click="showModal = false" class="p-1 hover:bg-slate-100 rounded-full"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
-            <form action="/save" method="POST" class="overflow-y-auto p-8 space-y-6">
+            <form action="save" method="POST" class="overflow-y-auto p-8 space-y-6">
                 <input type="hidden" name="id" :value="editingAccount.id">
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
@@ -273,7 +273,7 @@ HTML_TEMPLATE = """
                     if (confirm('Delete this account permanently?')) {
                         const form = document.createElement('form');
                         form.method = 'POST';
-                        form.action = '/delete/' + this.editingAccount.id;
+                        form.action = 'delete/' + this.editingAccount.id;
                         document.body.appendChild(form);
                         form.submit();
                     }
