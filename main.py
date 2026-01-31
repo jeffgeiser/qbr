@@ -279,7 +279,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
 <body x-data="accountDetails()">
     <nav class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div class="flex items-center space-x-2.5">
+            <a href="/qbr/" class="flex items-center space-x-2.5 hover:opacity-80 transition-opacity">
                 <div class="relative w-8 h-8 flex items-center justify-center">
                     <div class="absolute inset-0 rounded-full border-[5px] border-transparent donut-logo"></div>
                 </div>
@@ -287,7 +287,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
                     <span class="text-[22px] font-medium text-[#2d3b45] tracking-tight leading-none">zenlayer</span>
                     <span class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5 leading-none">Engagement Plan</span>
                 </div>
-            </div>
+            </a>
             <a href="/qbr/" class="flex items-center space-x-2 text-slate-500 hover:text-slate-900 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 <span class="text-sm font-medium">Back to Portfolio</span>
