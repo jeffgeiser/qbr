@@ -327,13 +327,13 @@ async def save_account(
         }
         ACCOUNTS.append(new_acc)
     
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/qbr/", status_code=303)
 
 @app.post("/delete/{account_id}")
 async def delete_account(account_id: str):
     global ACCOUNTS
     ACCOUNTS = [acc for acc in ACCOUNTS if acc["id"] != account_id]
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/qbr/", status_code=303)
 
 if __name__ == "__main__":
     import uvicorn
