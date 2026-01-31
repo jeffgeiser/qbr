@@ -20,7 +20,6 @@ ACCOUNTS = [
         "email": "contact@zoom.com",
         "location": "Global",
         "annualRevenue": 8807991,
-        "status": "Active",
         "healthSentiment": "green",
         "nextQbrDate": "",
         "notes": "In person.. Dinner preferable Jasper: Lagos project active ($100k MRR)",
@@ -36,7 +35,6 @@ ACCOUNTS = [
         "email": "info@nvidia.com",
         "location": "Global",
         "annualRevenue": 3288080,
-        "status": "Active",
         "healthSentiment": "yellow",
         "nextQbrDate": "",
         "notes": "Strategic hardware alignment",
@@ -52,7 +50,6 @@ ACCOUNTS = [
         "email": "mhayes@cisco.com",
         "location": "NoCal",
         "annualRevenue": 3210445,
-        "status": "Active",
         "healthSentiment": "red",
         "nextQbrDate": "2026-03-15",
         "notes": "Project active; Umbrella/Webex integration",
@@ -110,7 +107,7 @@ HTML_TEMPLATE = """
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
                 <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Accounts</span>
                 <span class="text-2xl font-semibold text-slate-900" x-text="accounts.length"></span>
@@ -122,10 +119,6 @@ HTML_TEMPLATE = """
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
                 <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tier 1 Strategic</span>
                 <span class="text-2xl font-semibold text-slate-900" x-text="tier1Count()"></span>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-2">At Risk Status</span>
-                <span class="text-2xl font-semibold text-rose-500" x-text="riskCount()"></span>
             </div>
         </div>
 
@@ -145,7 +138,8 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Progress</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Tracking</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
                     </tr>
@@ -165,13 +159,16 @@ HTML_TEMPLATE = """
                                 </div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="flex items-center space-x-3">
-                                    <div class="flex-1 max-w-[120px] bg-slate-100 rounded-full h-2 overflow-hidden">
-                                        <div class="h-full bg-emerald-500 rounded-full transition-all"
-                                             :style="'width: ' + qbrProgress(account) + '%'"></div>
-                                    </div>
-                                    <span class="text-xs text-slate-500 font-medium" x-text="qbrProgress(account) + '%'"></span>
+                                <div class="flex space-x-1.5">
+                                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
+                                             class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                                    </template>
                                 </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
+                                      x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                             </td>
                             <td class="px-6 py-4">
                                 <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
@@ -238,9 +235,10 @@ HTML_TEMPLATE = """
                 goToAccount(id) {
                     window.location.href = '/qbr/account/' + id;
                 },
-                qbrProgress(account) {
-                    const completed = Object.values(account.qbrCompletion).filter(v => v).length;
-                    return Math.round((completed / 4) * 100);
+                formatDate(dateStr) {
+                    if (!dateStr) return 'TBD';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 },
                 q1Count() {
                     if (!this.accounts.length) return 0;
@@ -248,9 +246,6 @@ HTML_TEMPLATE = """
                 },
                 tier1Count() {
                     return this.accounts.filter(a => a.tier === 'Tier 1').length;
-                },
-                riskCount() {
-                    return this.accounts.filter(a => a.status === 'At Risk' || a.healthSentiment === 'red').length;
                 }
             }
         }
@@ -302,7 +297,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
     <main class="max-w-4xl mx-auto px-6 py-8">
         <!-- Account Header -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
-            <div class="flex items-start justify-between mb-6">
+            <div class="flex items-start justify-between">
                 <div class="flex items-center space-x-4">
                     <div class="w-4 h-4 rounded-full"
                          :class="{
@@ -319,14 +314,63 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         </div>
                     </div>
                 </div>
-                <div x-show="account.status === 'At Risk'" class="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-xs font-bold">
-                    At Risk
+                <button x-show="!isEditing" @click="isEditing = true" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all">
+                    Edit Account
+                </button>
+            </div>
+        </div>
+
+        <!-- View Mode -->
+        <div x-show="!isEditing" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                    <p class="text-sm text-slate-900" x-text="account.name"></p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                    <p class="text-sm text-slate-900" x-text="account.owner || 'Unassigned'"></p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                    <p class="text-sm text-slate-900" x-text="account.tier"></p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                    <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full"
+                         :class="{
+                             'bg-emerald-500': account.healthSentiment === 'green',
+                             'bg-amber-400': account.healthSentiment === 'yellow',
+                             'bg-rose-500': account.healthSentiment === 'red'
+                         }"></div>
+                    <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                <div class="flex space-x-2">
+                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                             class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
+                             x-text="q"></div>
+                    </template>
                 </div>
             </div>
         </div>
 
-        <!-- Edit Form -->
-        <form action="/qbr/save" method="POST" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+        <!-- Edit Mode -->
+        <form x-show="isEditing" action="/qbr/save" method="POST" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
             <input type="hidden" name="id" :value="account.id">
 
             <div class="grid grid-cols-2 gap-6">
@@ -377,22 +421,10 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
                              class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
                             <div class="w-3 h-3 rounded-full bg-rose-500"></div>
-                            <span class="text-sm font-medium">Critical</span>
+                            <span class="text-sm font-medium">At Risk</span>
                         </div>
                     </label>
                 </div>
-            </div>
-
-            <div>
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Status</label>
-                <label class="cursor-pointer inline-flex items-center space-x-3">
-                    <input type="checkbox" name="at_risk" x-model="account.status" true-value="At Risk" false-value="Active" class="hidden">
-                    <div :class="account.status === 'At Risk' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'"
-                         class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border border-transparent">
-                        At Risk
-                    </div>
-                    <span class="text-sm text-slate-500" x-text="account.status === 'At Risk' ? 'This account is marked as at risk' : 'Click to mark as at risk'"></span>
-                </label>
             </div>
 
             <div>
@@ -411,7 +443,8 @@ ACCOUNT_DETAILS_TEMPLATE = """
 
             <div class="flex space-x-3 pt-6 border-t border-slate-100">
                 <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
-                <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete Account</button>
+                <button type="button" @click="isEditing = false; resetAccount()" class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all font-semibold">Cancel</button>
+                <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete</button>
             </div>
         </form>
     </main>
@@ -437,7 +470,17 @@ ACCOUNT_DETAILS_TEMPLATE = """
         function accountDetails() {
             return {
                 account: {{ account_json | safe }},
+                originalAccount: JSON.parse('{{ account_json | safe }}'),
+                isEditing: false,
                 showDeleteConfirm: false,
+                formatDate(dateStr) {
+                    if (!dateStr) return 'TBD';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                },
+                resetAccount() {
+                    this.account = JSON.parse(JSON.stringify(this.originalAccount));
+                },
                 confirmDelete() {
                     const form = document.createElement('form');
                     form.method = 'POST';
@@ -472,7 +515,6 @@ async def save_account(
     name: str = Form(...),
     tier: str = Form(...),
     owner: str = Form(""),
-    at_risk: Optional[str] = Form(None),
     health_sentiment: Optional[str] = Form("green"),
     next_qbr_date: Optional[str] = Form(""),
     q1: Optional[str] = Form(None),
@@ -486,7 +528,6 @@ async def save_account(
         "q3": q3 == "on",
         "q4": q4 == "on"
     }
-    status = "At Risk" if at_risk == "on" else "Active"
 
     if id:
         for acc in ACCOUNTS:
@@ -495,7 +536,6 @@ async def save_account(
                     "name": name,
                     "tier": tier,
                     "owner": owner,
-                    "status": status,
                     "healthSentiment": health_sentiment or "green",
                     "nextQbrDate": next_qbr_date or "",
                     "qbrCompletion": qbr
@@ -509,7 +549,6 @@ async def save_account(
             "name": name,
             "tier": tier,
             "owner": owner,
-            "status": status,
             "healthSentiment": health_sentiment or "green",
             "nextQbrDate": next_qbr_date or "",
             "qbrCompletion": qbr
