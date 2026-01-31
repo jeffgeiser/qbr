@@ -6,7 +6,7 @@ from typing import List, Optional, Dict
 import json
 import uuid
 
-app = FastAPI(rooth_path="/qbr"))
+app = FastAPI(root_path="/qbr")
 
 # --- Initial Data ---
 ACCOUNTS = [
@@ -21,6 +21,8 @@ ACCOUNTS = [
         "location": "Global",
         "annualRevenue": 8807991,
         "status": "Active",
+        "healthSentiment": "green",
+        "nextQbrDate": "",
         "notes": "In person.. Dinner preferable Jasper: Lagos project active ($100k MRR)",
         "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False}
     },
@@ -35,8 +37,10 @@ ACCOUNTS = [
         "location": "Global",
         "annualRevenue": 3288080,
         "status": "Active",
+        "healthSentiment": "yellow",
+        "nextQbrDate": "",
         "notes": "Strategic hardware alignment",
-        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False}
+        "qbrCompletion": {"q1": True, "q2": False, "q3": False, "q4": False}
     },
     {
         "id": "3",
@@ -49,12 +53,14 @@ ACCOUNTS = [
         "location": "NoCal",
         "annualRevenue": 3210445,
         "status": "Active",
+        "healthSentiment": "red",
+        "nextQbrDate": "2026-03-15",
         "notes": "Project active; Umbrella/Webex integration",
-        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False}
+        "qbrCompletion": {"q1": True, "q2": True, "q3": False, "q4": False}
     }
 ]
 
-# --- HTML Template ---
+# --- HTML Template for Main Dashboard ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -88,7 +94,7 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             <div class="flex items-center space-x-4">
-                <input type="text" x-model="search" placeholder="Search accounts..." 
+                <input type="text" x-model="search" placeholder="Search accounts..."
                        class="bg-slate-50 border-none rounded-full py-2 px-5 text-sm focus:ring-1 focus:ring-blue-400 w-64 transition-all">
                 <button @click="openModal()" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-full text-[13px] font-semibold flex items-center space-x-2 transition-all shadow-sm">
                     <span>+ New Account</span>
@@ -126,7 +132,7 @@ HTML_TEMPLATE = """
         <!-- Tier Filters -->
         <div class="flex items-center space-x-2 mb-6">
             <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
-                <button @click="tierFilter = t" 
+                <button @click="tierFilter = t"
                         :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
                         class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
                         x-text="t"></button>
@@ -139,36 +145,38 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Tracking</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">QBR Progress</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Settings</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     <template x-for="account in filteredAccounts()" :key="account.id">
-                        <tr class="hover:bg-slate-50/50 transition-colors">
+                        <tr @click="goToAccount(account.id)" class="hover:bg-slate-50/50 transition-colors cursor-pointer">
                             <td class="px-6 py-4">
-                                <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                         :class="{
+                                             'bg-emerald-500': account.healthSentiment === 'green',
+                                             'bg-amber-400': account.healthSentiment === 'yellow',
+                                             'bg-rose-500': account.healthSentiment === 'red'
+                                         }"></div>
+                                    <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
+                                </div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="flex space-x-1.5">
-                                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                             class="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold uppercase transition-all shadow-sm"
-                                             x-text="q"></div>
-                                    </template>
+                                <div class="flex items-center space-x-3">
+                                    <div class="flex-1 max-w-[120px] bg-slate-100 rounded-full h-2 overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full transition-all"
+                                             :style="'width: ' + qbrProgress(account) + '%'"></div>
+                                    </div>
+                                    <span class="text-xs text-slate-500 font-medium" x-text="qbrProgress(account) + '%'"></span>
                                 </div>
                             </td>
                             <td class="px-6 py-4">
                                 <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600" x-text="account.owner"></td>
-                            <td class="px-6 py-4 text-right">
-                                <button @click="openModal(account)" class="p-1.5 text-slate-400 hover:text-blue-500 transition-colors">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                </button>
-                            </td>
                         </tr>
                     </template>
                 </tbody>
@@ -176,77 +184,32 @@ HTML_TEMPLATE = """
         </div>
     </main>
 
-    <!-- Delete Confirmation Modal -->
-    <div x-show="showDeleteConfirm" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" x-cloak>
-        <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" @click.away="showDeleteConfirm = false">
-            <div class="p-6 text-center">
-                <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </div>
-                <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Account</h3>
-                <p class="text-sm text-slate-500 mb-6">Are you sure you want to delete <span class="font-semibold text-slate-700" x-text="editingAccount.name"></span>? This action cannot be undone.</p>
-                <div class="flex space-x-3">
-                    <button @click="showDeleteConfirm = false" class="flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
-                    <button @click="confirmDelete()" class="flex-1 bg-rose-500 text-white font-semibold py-2.5 rounded-xl hover:bg-rose-600 transition-all">Delete</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal -->
+    <!-- New Account Modal -->
     <div x-show="showModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
         <div class="bg-white rounded-[2rem] w-full max-w-xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" @click.away="showModal = false">
             <div class="p-6 border-b flex justify-between items-center bg-slate-50/50">
-                <h2 class="text-lg font-bold text-slate-900" x-text="editingAccount.id ? 'Edit Account' : 'New Account'"></h2>
+                <h2 class="text-lg font-bold text-slate-900">New Account</h2>
                 <button @click="showModal = false" class="p-1 hover:bg-slate-100 rounded-full"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
             <form action="/qbr/save" method="POST" class="overflow-y-auto p-8 space-y-6">
-                <input type="hidden" name="id" :value="editingAccount.id">
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                    <input name="name" x-model="editingAccount.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                    <input name="name" x-model="newAccount.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
-                        <select name="tier" x-model="editingAccount.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        <select name="tier" x-model="newAccount.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
                             <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
-                        <input name="owner" x-model="editingAccount.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Status</label>
-                    <label class="cursor-pointer inline-flex items-center space-x-3">
-                        <input type="checkbox" name="at_risk" x-model="editingAccount.status" true-value="At Risk" false-value="Active" class="hidden">
-                        <div :class="editingAccount.status === 'At Risk' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'"
-                             class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border border-transparent">
-                            At Risk
-                        </div>
-                        <span class="text-sm text-slate-500" x-text="editingAccount.status === 'At Risk' ? 'This account is marked as at risk' : 'Click to mark as at risk'"></span>
-                    </label>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                            <label class="cursor-pointer">
-                                <input type="checkbox" :name="q" x-model="editingAccount.qbrCompletion[q]" class="hidden">
-                                <div :class="editingAccount.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                     class="px-3 py-2 rounded-lg text-center text-xs font-bold uppercase transition-all border border-transparent"
-                                     x-text="q"></div>
-                            </label>
-                        </template>
+                        <input name="owner" x-model="newAccount.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
                     </div>
                 </div>
                 <div class="flex space-x-3 pt-4">
-                    <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
-                    <template x-if="editingAccount.id">
-                         <button type="button" @click="deleteAccount()" class="bg-rose-50 text-rose-500 px-4 py-3 rounded-xl hover:bg-rose-100 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                    </template>
+                    <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Create Account</button>
                 </div>
             </form>
         </div>
@@ -259,9 +222,8 @@ HTML_TEMPLATE = """
                 search: '',
                 tierFilter: 'All',
                 showModal: false,
-                showDeleteConfirm: false,
-                editingAccount: { id: '', name: '', tier: 'Tier 2', owner: '', status: 'Active', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} },
-                
+                newAccount: { name: '', tier: 'Tier 2', owner: '' },
+
                 filteredAccounts() {
                     return this.accounts.filter(acc => {
                         const matchesSearch = acc.name.toLowerCase().includes(this.search.toLowerCase());
@@ -269,13 +231,16 @@ HTML_TEMPLATE = """
                         return matchesSearch && matchesTier;
                     });
                 },
-                openModal(acc = null) {
-                    if (acc) {
-                        this.editingAccount = JSON.parse(JSON.stringify(acc));
-                    } else {
-                        this.editingAccount = { id: '', name: '', tier: 'Tier 2', owner: '', status: 'Active', qbrCompletion: {q1: false, q2: false, q3: false, q4: false} };
-                    }
+                openModal() {
+                    this.newAccount = { name: '', tier: 'Tier 2', owner: '' };
                     this.showModal = true;
+                },
+                goToAccount(id) {
+                    window.location.href = '/qbr/account/' + id;
+                },
+                qbrProgress(account) {
+                    const completed = Object.values(account.qbrCompletion).filter(v => v).length;
+                    return Math.round((completed / 4) * 100);
                 },
                 q1Count() {
                     if (!this.accounts.length) return 0;
@@ -285,15 +250,198 @@ HTML_TEMPLATE = """
                     return this.accounts.filter(a => a.tier === 'Tier 1').length;
                 },
                 riskCount() {
-                    return this.accounts.filter(a => a.status === 'At Risk').length;
-                },
-                deleteAccount() {
-                    this.showDeleteConfirm = true;
-                },
+                    return this.accounts.filter(a => a.status === 'At Risk' || a.healthSentiment === 'red').length;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+# --- HTML Template for Account Details Page ---
+ACCOUNT_DETAILS_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ account.name }} - Zenlayer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fcfcfd; }
+        .donut-logo {
+            background: linear-gradient(to right, #33d4ff, #0076ff) border-box;
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out;
+            mask-composite: exclude;
+        }
+    </style>
+</head>
+<body x-data="accountDetails()">
+    <nav class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="relative w-8 h-8 flex items-center justify-center">
+                    <div class="absolute inset-0 rounded-full border-[5px] border-transparent donut-logo"></div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[22px] font-medium text-[#2d3b45] tracking-tight leading-none">zenlayer</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5 leading-none">Engagement Plan</span>
+                </div>
+            </div>
+            <a href="/qbr/" class="flex items-center space-x-2 text-slate-500 hover:text-slate-900 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                <span class="text-sm font-medium">Back to Portfolio</span>
+            </a>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-6 py-8">
+        <!-- Account Header -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+            <div class="flex items-start justify-between mb-6">
+                <div class="flex items-center space-x-4">
+                    <div class="w-4 h-4 rounded-full"
+                         :class="{
+                             'bg-emerald-500': account.healthSentiment === 'green',
+                             'bg-amber-400': account.healthSentiment === 'yellow',
+                             'bg-rose-500': account.healthSentiment === 'red'
+                         }"></div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900" x-text="account.name"></h1>
+                        <div class="flex items-center space-x-3 mt-1">
+                            <span class="text-sm text-slate-500">Owner: <span class="font-medium text-slate-700" x-text="account.owner || 'Unassigned'"></span></span>
+                            <span class="text-slate-300">|</span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30" x-text="account.tier"></span>
+                        </div>
+                    </div>
+                </div>
+                <div x-show="account.status === 'At Risk'" class="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-xs font-bold">
+                    At Risk
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Form -->
+        <form action="/qbr/save" method="POST" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+            <input type="hidden" name="id" :value="account.id">
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                    <input name="name" x-model="account.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                    <input name="owner" x-model="account.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                    <select name="tier" x-model="account.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                    <input type="date" name="next_qbr_date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                <div class="flex space-x-3">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="health_sentiment" value="green" x-model="account.healthSentiment" class="hidden">
+                        <div :class="account.healthSentiment === 'green' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''"
+                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                            <span class="text-sm font-medium">Healthy</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="health_sentiment" value="yellow" x-model="account.healthSentiment" class="hidden">
+                        <div :class="account.healthSentiment === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-2' : ''"
+                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                            <span class="text-sm font-medium">Concern</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="health_sentiment" value="red" x-model="account.healthSentiment" class="hidden">
+                        <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
+                             class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                            <span class="text-sm font-medium">Critical</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Status</label>
+                <label class="cursor-pointer inline-flex items-center space-x-3">
+                    <input type="checkbox" name="at_risk" x-model="account.status" true-value="At Risk" false-value="Active" class="hidden">
+                    <div :class="account.status === 'At Risk' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'"
+                         class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border border-transparent">
+                        At Risk
+                    </div>
+                    <span class="text-sm text-slate-500" x-text="account.status === 'At Risk' ? 'This account is marked as at risk' : 'Click to mark as at risk'"></span>
+                </label>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                <div class="grid grid-cols-4 gap-3">
+                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                        <label class="cursor-pointer">
+                            <input type="checkbox" :name="q" x-model="account.qbrCompletion[q]" class="hidden">
+                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                 class="px-4 py-3 rounded-xl text-center text-sm font-bold uppercase transition-all"
+                                 x-text="q"></div>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-6 border-t border-slate-100">
+                <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
+                <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete Account</button>
+            </div>
+        </form>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div x-show="showDeleteConfirm" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" x-cloak>
+        <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" @click.away="showDeleteConfirm = false">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Account</h3>
+                <p class="text-sm text-slate-500 mb-6">Are you sure you want to delete <span class="font-semibold text-slate-700" x-text="account.name"></span>? This action cannot be undone.</p>
+                <div class="flex space-x-3">
+                    <button @click="showDeleteConfirm = false" class="flex-1 bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
+                    <button @click="confirmDelete()" class="flex-1 bg-rose-500 text-white font-semibold py-2.5 rounded-xl hover:bg-rose-600 transition-all">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function accountDetails() {
+            return {
+                account: {{ account_json | safe }},
+                showDeleteConfirm: false,
                 confirmDelete() {
                     const form = document.createElement('form');
                     form.method = 'POST';
-                    form.action = '/qbr/delete/' + this.editingAccount.id;
+                    form.action = '/qbr/delete/' + this.account.id;
                     document.body.appendChild(form);
                     form.submit();
                 }
@@ -305,10 +453,18 @@ HTML_TEMPLATE = """
 """
 
 @app.get("/", response_class=HTMLResponse)
-@app.get("", response_class=HTMLResponse) # 3. ADD EMPTY ROUTE
+@app.get("", response_class=HTMLResponse)
 async def dashboard(request: Request):
     accounts_json = json.dumps(ACCOUNTS)
     return Template(HTML_TEMPLATE).render(accounts_json=accounts_json)
+
+@app.get("/account/{account_id}", response_class=HTMLResponse)
+async def account_details(account_id: str):
+    account = next((acc for acc in ACCOUNTS if acc["id"] == account_id), None)
+    if not account:
+        return RedirectResponse(url="/qbr/", status_code=303)
+    account_json = json.dumps(account)
+    return Template(ACCOUNT_DETAILS_TEMPLATE).render(account=account, account_json=account_json)
 
 @app.post("/save")
 async def save_account(
@@ -317,6 +473,8 @@ async def save_account(
     tier: str = Form(...),
     owner: str = Form(""),
     at_risk: Optional[str] = Form(None),
+    health_sentiment: Optional[str] = Form("green"),
+    next_qbr_date: Optional[str] = Form(""),
     q1: Optional[str] = Form(None),
     q2: Optional[str] = Form(None),
     q3: Optional[str] = Form(None),
@@ -333,20 +491,31 @@ async def save_account(
     if id:
         for acc in ACCOUNTS:
             if acc["id"] == id:
-                acc.update({"name": name, "tier": tier, "owner": owner, "status": status, "qbrCompletion": qbr})
+                acc.update({
+                    "name": name,
+                    "tier": tier,
+                    "owner": owner,
+                    "status": status,
+                    "healthSentiment": health_sentiment or "green",
+                    "nextQbrDate": next_qbr_date or "",
+                    "qbrCompletion": qbr
+                })
                 break
+        return RedirectResponse(url=f"/qbr/account/{id}", status_code=303)
     else:
+        new_id = str(uuid.uuid4())
         new_acc = {
-            "id": str(uuid.uuid4()),
+            "id": new_id,
             "name": name,
             "tier": tier,
             "owner": owner,
             "status": status,
+            "healthSentiment": health_sentiment or "green",
+            "nextQbrDate": next_qbr_date or "",
             "qbrCompletion": qbr
         }
         ACCOUNTS.append(new_acc)
-    
-    return RedirectResponse(url="/qbr/", status_code=303)
+        return RedirectResponse(url="/qbr/", status_code=303)
 
 @app.post("/delete/{account_id}")
 async def delete_account(account_id: str):
