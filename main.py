@@ -226,9 +226,9 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="w-10 border-b border-slate-100"></th>
-                        <th class="py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
-                        <th class="w-48 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
-                        <th class="w-32 px-6 py-4 border-b border-slate-100">
+                        <th class="w-56 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
+                        <th class="w-28 px-4 py-4 border-b border-slate-100">
                             <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">QBR Tracking</div>
                             <div class="flex">
                                 <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q1</span>
@@ -237,9 +237,9 @@ HTML_TEMPLATE = """
                                 <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q4</span>
                             </div>
                         </th>
-                        <th class="w-32 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
-                        <th class="w-24 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
-                        <th class="w-28 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
+                        <th class="w-28 px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
+                        <th class="w-16 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
+                        <th class="w-20 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -260,8 +260,8 @@ HTML_TEMPLATE = """
                                             </svg>
                                         </button>
                                     </div>
-                                    <!-- Account Name -->
-                                    <div @click="goToAccount(account.id)" class="py-4 flex-1 cursor-pointer">
+                                    <!-- Account Name (fixed width, truncated) -->
+                                    <div @click="goToAccount(account.id)" class="w-56 py-4 flex-shrink-0 cursor-pointer">
                                         <div class="flex items-center space-x-3">
                                             <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                  :class="{
@@ -269,16 +269,16 @@ HTML_TEMPLATE = """
                                                      'bg-amber-400': account.healthSentiment === 'yellow',
                                                      'bg-rose-500': account.healthSentiment === 'red'
                                                  }"></div>
-                                            <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
+                                            <span class="font-semibold text-slate-900 text-sm truncate" x-text="truncate(account.name, 35)"></span>
                                         </div>
                                     </div>
-                                    <!-- Latest Update (truncated) -->
-                                    <div @click="goToAccount(account.id)" class="w-48 px-6 py-4 flex-shrink-0 cursor-pointer">
+                                    <!-- Latest Update (flexible width) -->
+                                    <div @click="goToAccount(account.id)" class="flex-1 px-6 py-4 cursor-pointer">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
-                                              x-text="truncate(account.latestUpdate, 60) || '-'"></span>
+                                              x-text="account.latestUpdate || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
-                                    <div @click="goToAccount(account.id)" class="w-32 px-6 py-4 flex-shrink-0 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-28 px-4 py-4 flex-shrink-0 cursor-pointer">
                                         <div class="flex">
                                             <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
                                                 <div class="w-6 flex justify-center">
@@ -289,16 +289,16 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Next QBR -->
-                                    <div @click="goToAccount(account.id)" class="w-32 px-6 py-4 flex-shrink-0 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-28 px-4 py-4 flex-shrink-0 cursor-pointer">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
                                     <!-- Tier -->
-                                    <div @click="goToAccount(account.id)" class="w-24 px-6 py-4 flex-shrink-0 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-16 px-3 py-4 flex-shrink-0 cursor-pointer">
                                         <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div @click="goToAccount(account.id)" class="w-28 px-6 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
+                                    <div @click="goToAccount(account.id)" class="w-20 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
                                 </div>
                                 <!-- Expandable Insights Row -->
                                 <div x-show="expandedAccountId === account.id" x-collapse
@@ -364,7 +364,8 @@ HTML_TEMPLATE = """
             <form action="/qbr/save" method="POST" class="overflow-y-auto p-8 space-y-6">
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                    <input name="name" x-model="newAccount.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                    <input name="name" x-model="newAccount.name" maxlength="35" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                    <p class="text-xs text-slate-400 mt-1">Max 35 characters</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -605,7 +606,8 @@ ACCOUNT_DETAILS_TEMPLATE = """
                 <div class="grid grid-cols-2 gap-6">
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                        <input name="name" x-model="account.name" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                        <input name="name" x-model="account.name" maxlength="35" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                        <p class="text-xs text-slate-400 mt-1">Max 35 characters</p>
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
