@@ -222,12 +222,13 @@ HTML_TEMPLATE = """
 
         <!-- Account Table -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <table class="w-full text-left">
+            <table class="w-full text-left table-fixed">
                 <thead>
                     <tr class="bg-slate-50/30">
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
-                        <th class="px-6 py-4 border-b border-slate-100">
+                        <th class="w-10 border-b border-slate-100"></th>
+                        <th class="py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
+                        <th class="w-48 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
+                        <th class="w-32 px-6 py-4 border-b border-slate-100">
                             <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">QBR Tracking</div>
                             <div class="flex">
                                 <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q1</span>
@@ -236,19 +237,19 @@ HTML_TEMPLATE = """
                                 <span class="w-6 text-[9px] font-semibold text-slate-300 text-center">Q4</span>
                             </div>
                         </th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
+                        <th class="w-32 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
+                        <th class="w-24 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
+                        <th class="w-28 px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     <template x-for="account in filteredAccounts()" :key="account.id">
                         <tr>
-                            <td colspan="6" class="p-0">
+                            <td colspan="7" class="p-0">
                                 <!-- Main Row -->
                                 <div class="flex hover:bg-slate-50/50 transition-colors">
                                     <!-- Chevron Toggle -->
-                                    <div class="flex items-center pl-4">
+                                    <div class="w-10 flex items-center justify-center flex-shrink-0">
                                         <button @click.stop="toggleExpand(account.id)"
                                                 class="p-1 rounded hover:bg-slate-100 transition-colors"
                                                 :class="expandedAccountId === account.id ? 'text-slate-700' : 'text-slate-400'">
@@ -260,7 +261,7 @@ HTML_TEMPLATE = """
                                         </button>
                                     </div>
                                     <!-- Account Name -->
-                                    <div @click="goToAccount(account.id)" class="px-3 py-4 flex-1 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="py-4 flex-1 cursor-pointer">
                                         <div class="flex items-center space-x-3">
                                             <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                  :class="{
@@ -272,12 +273,12 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Latest Update (truncated) -->
-                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-48 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-48 px-6 py-4 flex-shrink-0 cursor-pointer">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="truncate(account.latestUpdate, 60) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
-                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-32 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-32 px-6 py-4 flex-shrink-0 cursor-pointer">
                                         <div class="flex">
                                             <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
                                                 <div class="w-6 flex justify-center">
@@ -288,21 +289,21 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Next QBR -->
-                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-32 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-32 px-6 py-4 flex-shrink-0 cursor-pointer">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
                                     <!-- Tier -->
-                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-24 cursor-pointer">
+                                    <div @click="goToAccount(account.id)" class="w-24 px-6 py-4 flex-shrink-0 cursor-pointer">
                                         <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-28 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
+                                    <div @click="goToAccount(account.id)" class="w-28 px-6 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
                                 </div>
                                 <!-- Expandable Insights Row -->
                                 <div x-show="expandedAccountId === account.id" x-collapse
                                      class="border-t border-b border-slate-200" style="background-color: #F8FAFC;">
-                                    <div class="px-6 py-5 ml-8">
+                                    <div class="py-5 pl-10 pr-6">
                                         <!-- Full Latest Update -->
                                         <div x-show="account.latestUpdate" class="mb-4 pb-4 border-b border-slate-200">
                                             <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Current Status</label>
