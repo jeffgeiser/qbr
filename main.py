@@ -257,10 +257,10 @@ HTML_TEMPLATE = """
                                             <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
                                         </div>
                                     </div>
-                                    <!-- Latest Update -->
+                                    <!-- Latest Update (truncated) -->
                                     <div @click="goToAccount(account.id)" class="px-6 py-4 w-48 cursor-pointer">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
-                                              x-text="account.latestUpdate || '-'"></span>
+                                              x-text="truncate(account.latestUpdate, 60) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
                                     <div @click="goToAccount(account.id)" class="px-6 py-4 w-32 cursor-pointer">
@@ -289,6 +289,12 @@ HTML_TEMPLATE = """
                                 <div x-show="expandedAccountId === account.id" x-collapse
                                      class="border-t border-b border-slate-200" style="background-color: #F8FAFC;">
                                     <div class="px-6 py-5 ml-8">
+                                        <!-- Full Latest Update -->
+                                        <div x-show="account.latestUpdate" class="mb-4 pb-4 border-b border-slate-200">
+                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Current Status</label>
+                                            <p class="text-sm text-slate-700 font-medium" x-text="account.latestUpdate"></p>
+                                        </div>
+                                        <!-- Two Column Layout -->
                                         <div class="grid grid-cols-2 gap-8">
                                             <div>
                                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
@@ -307,19 +313,19 @@ HTML_TEMPLATE = """
                                                 </template>
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Next Steps</label>
-                                                <template x-if="account.nextSteps">
+                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Action Items</label>
+                                                <template x-if="account.actionItems && account.actionItems.length > 0">
                                                     <ul class="space-y-1.5">
-                                                        <template x-for="line in account.nextSteps.split('\\n').filter(l => l.trim())">
+                                                        <template x-for="item in account.actionItems">
                                                             <li class="flex items-start space-x-2 text-sm text-slate-600">
                                                                 <span class="text-slate-400 mt-1.5">•</span>
-                                                                <span x-text="line.replace(/^[-•*]\s*/, '')"></span>
+                                                                <span x-text="item"></span>
                                                             </li>
                                                         </template>
                                                     </ul>
                                                 </template>
-                                                <template x-if="!account.nextSteps">
-                                                    <p class="text-sm text-slate-400 italic">No next steps defined yet.</p>
+                                                <template x-if="!account.actionItems || account.actionItems.length === 0">
+                                                    <p class="text-sm text-slate-400 italic">No action items defined yet.</p>
                                                 </template>
                                             </div>
                                         </div>
@@ -383,6 +389,10 @@ HTML_TEMPLATE = """
                 },
                 toggleExpand(id) {
                     this.expandedAccountId = this.expandedAccountId === id ? null : id;
+                },
+                truncate(text, length) {
+                    if (!text) return '';
+                    return text.length > length ? text.substring(0, length) + '...' : text;
                 },
                 openModal() {
                     this.newAccount = { name: '', tier: 'Tier 2', owner: '' };
@@ -452,58 +462,83 @@ ACCOUNT_DETAILS_TEMPLATE = """
     </nav>
 
     <main class="max-w-4xl mx-auto px-6 py-8">
-        <!-- Account Header -->
+        <!-- Account Header with Metadata Badges -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
             <div class="flex items-start justify-between">
-                <div class="flex items-center space-x-4">
-                    <div class="w-4 h-4 rounded-full"
-                         :class="{
-                             'bg-emerald-500': account.healthSentiment === 'green',
-                             'bg-amber-400': account.healthSentiment === 'yellow',
-                             'bg-rose-500': account.healthSentiment === 'red'
-                         }"></div>
-                    <div>
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-1">
                         <h1 class="text-2xl font-bold text-slate-900" x-text="account.name"></h1>
-                        <div class="flex items-center space-x-3 mt-1">
-                            <span class="text-sm text-slate-500">Owner: <span class="font-medium text-slate-700" x-text="account.owner || 'Unassigned'"></span></span>
-                            <span class="text-slate-300">|</span>
-                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30" x-text="account.tier"></span>
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50" x-text="account.tier"></span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm text-slate-500 mb-2">
+                        <span>Owner: <span class="font-medium text-slate-700" x-text="account.owner || 'Unassigned'"></span></span>
+                    </div>
+                    <!-- Current Status Headline -->
+                    <p x-show="account.latestUpdate" class="text-base font-semibold text-slate-700 mt-3" x-text="account.latestUpdate"></p>
+                </div>
+                <!-- Metadata Badges + Edit Button -->
+                <div class="flex flex-col items-end space-y-3">
+                    <button x-show="!isEditing" @click="isEditing = true" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all">
+                        Edit Account
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <!-- Health Sentiment Badge -->
+                        <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                             :class="{
+                                 'bg-emerald-50 text-emerald-700 border border-emerald-200': account.healthSentiment === 'green',
+                                 'bg-amber-50 text-amber-700 border border-amber-200': account.healthSentiment === 'yellow',
+                                 'bg-rose-50 text-rose-700 border border-rose-200': account.healthSentiment === 'red'
+                             }">
+                            <div class="w-2 h-2 rounded-full"
+                                 :class="{
+                                     'bg-emerald-500': account.healthSentiment === 'green',
+                                     'bg-amber-500': account.healthSentiment === 'yellow',
+                                     'bg-rose-500': account.healthSentiment === 'red'
+                                 }"></div>
+                            <span x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
+                        </div>
+                        <!-- Next QBR Badge -->
+                        <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <span x-text="account.nextQbrDate ? 'QBR: ' + formatDate(account.nextQbrDate) : 'QBR: TBD'"></span>
                         </div>
                     </div>
                 </div>
-                <button x-show="!isEditing" @click="isEditing = true" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all">
-                    Edit Account
-                </button>
             </div>
         </div>
 
         <!-- View Mode -->
         <div x-show="!isEditing" class="space-y-6">
-            <!-- Hero Insights - Key Learnings & Next Steps -->
+            <!-- Hero Insights - Key Learnings & Action Items (Top Priority) -->
             <div class="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100 shadow-sm p-8">
                 <div class="grid grid-cols-2 gap-8">
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
-                        <p x-show="account.keyLearnings" class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed" x-text="account.keyLearnings"></p>
+                        <template x-if="account.keyLearnings">
+                            <ul class="space-y-2">
+                                <template x-for="line in account.keyLearnings.split('\\n').filter(l => l.trim())">
+                                    <li class="flex items-start space-x-2 text-sm text-slate-700">
+                                        <span class="text-slate-400 mt-0.5">•</span>
+                                        <span x-text="line.replace(/^[-•*]\\s*/, '')"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
                         <p x-show="!account.keyLearnings" class="text-sm text-slate-400 italic">No key learnings recorded yet.</p>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Next Steps</label>
-                        <p x-show="account.nextSteps" class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed" x-text="account.nextSteps"></p>
-                        <p x-show="!account.nextSteps" class="text-sm text-slate-400 italic">No next steps defined yet.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Latest Update -->
-            <div x-show="account.latestUpdate" class="bg-blue-50 rounded-2xl border border-blue-100 p-6">
-                <div class="flex items-start space-x-3">
-                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Latest Update</label>
-                        <p class="text-sm text-blue-800 font-medium" x-text="account.latestUpdate"></p>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Action Items</label>
+                        <template x-if="account.actionItems && account.actionItems.length > 0">
+                            <ul class="space-y-2">
+                                <template x-for="(item, index) in account.actionItems" :key="index">
+                                    <li class="flex items-start space-x-2 text-sm text-slate-700">
+                                        <span class="text-blue-500 font-semibold mt-0.5" x-text="(index + 1) + '.'"></span>
+                                        <span x-text="item"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400 italic">No action items defined yet.</p>
                     </div>
                 </div>
             </div>
@@ -512,53 +547,16 @@ ACCOUNT_DETAILS_TEMPLATE = """
             <div class="grid grid-cols-3 gap-6">
                 <!-- Main Content (2 columns) -->
                 <div class="col-span-2 space-y-6">
-                    <!-- Account Details Card -->
-                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
-                        <div class="grid grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
-                                <div class="flex items-center space-x-2">
-                                    <div class="w-3 h-3 rounded-full"
-                                         :class="{
-                                             'bg-emerald-500': account.healthSentiment === 'green',
-                                             'bg-amber-400': account.healthSentiment === 'yellow',
-                                             'bg-rose-500': account.healthSentiment === 'red'
-                                         }"></div>
-                                    <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
-                                <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                            <div class="flex space-x-2">
-                                <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                    <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                         class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
-                                         x-text="q"></div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Action Items Card -->
+                    <!-- QBR Tracker Card -->
                     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Action Items</label>
-                        <div x-show="account.actionItems && account.actionItems.length > 0" class="space-y-2">
-                            <template x-for="(item, index) in account.actionItems" :key="index">
-                                <div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-xl">
-                                    <div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
-                                    </div>
-                                    <p class="text-sm text-slate-700" x-text="item"></p>
-                                </div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">QBR Completion Tracker</label>
+                        <div class="flex space-x-3">
+                            <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                     class="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold uppercase"
+                                     x-text="q"></div>
                             </template>
                         </div>
-                        <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400">No action items recorded yet.</p>
                     </div>
                 </div>
 
