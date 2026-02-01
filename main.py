@@ -5,48 +5,143 @@ from jinja2 import Template
 from typing import List, Optional, Dict
 import json
 import uuid
+import sqlite3
+import os
 
 app = FastAPI(root_path="/qbr")
 
-# --- Initial Data ---
-ACCOUNTS = [
-    {
-        "id": "1",
-        "name": "Zoom Video Communications Inc.",
-        "tier": "Tier 1",
-        "owner": "Carlos",
-        "healthSentiment": "green",
-        "nextQbrDate": "",
-        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False},
-        "keyLearnings": "",
-        "actionItems": [],
-        "contacts": [{"name": "Eric Yuan", "email": "eric@zoom.com"}, {"name": "Kelly Steckelberg", "email": "kelly@zoom.com"}]
-    },
-    {
-        "id": "2",
-        "name": "Nvidia Corporation",
-        "tier": "Tier 1",
-        "owner": "Wade",
-        "healthSentiment": "yellow",
-        "nextQbrDate": "",
-        "qbrCompletion": {"q1": True, "q2": False, "q3": False, "q4": False},
-        "keyLearnings": "Strong interest in expanding GPU allocation for AI workloads.",
-        "actionItems": ["Follow up on pricing proposal", "Schedule technical deep-dive"],
-        "contacts": [{"name": "Jensen Huang", "email": "jensen@nvidia.com"}]
-    },
-    {
-        "id": "3",
-        "name": "Cisco - Jasper",
-        "tier": "Tier 1",
-        "owner": "Josh L.",
-        "healthSentiment": "red",
-        "nextQbrDate": "2026-03-15",
-        "qbrCompletion": {"q1": True, "q2": True, "q3": False, "q4": False},
-        "keyLearnings": "Concerns about latency in APAC region. Need to address before renewal.",
-        "actionItems": ["Review APAC latency metrics", "Prepare renewal proposal", "Schedule exec alignment call"],
-        "contacts": [{"name": "Mike Hayes", "email": "mhayes@cisco.com"}, {"name": "Chuck Robbins", "email": "crobbins@cisco.com"}]
+# --- Database Setup ---
+DB_PATH = os.environ.get("DB_PATH", "/app/data/accounts.db")
+
+def get_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS accounts (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            tier TEXT NOT NULL,
+            owner TEXT DEFAULT '',
+            health_sentiment TEXT DEFAULT 'green',
+            next_qbr_date TEXT DEFAULT '',
+            qbr_q1 INTEGER DEFAULT 0,
+            qbr_q2 INTEGER DEFAULT 0,
+            qbr_q3 INTEGER DEFAULT 0,
+            qbr_q4 INTEGER DEFAULT 0,
+            key_learnings TEXT DEFAULT '',
+            next_steps TEXT DEFAULT '',
+            latest_update TEXT DEFAULT '',
+            action_items TEXT DEFAULT '[]',
+            contacts TEXT DEFAULT '[]'
+        )
+    ''')
+    conn.commit()
+
+    # Add new columns if they don't exist (migration for existing databases)
+    try:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN next_steps TEXT DEFAULT ''")
+        conn.commit()
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN latest_update TEXT DEFAULT ''")
+        conn.commit()
+    except:
+        pass
+
+    # Seed with sample data if table is empty
+    cursor.execute("SELECT COUNT(*) FROM accounts")
+    if cursor.fetchone()[0] == 0:
+        sample_accounts = [
+            ("1", "Zoom Video Communications Inc.", "Tier 1", "Carlos", "green", "", 0, 0, 0, 0, "", "", "On track for renewal", "[]", '[{"name": "Eric Yuan", "email": "eric@zoom.com"}, {"name": "Kelly Steckelberg", "email": "kelly@zoom.com"}]'),
+            ("2", "Nvidia Corporation", "Tier 1", "Wade", "yellow", "", 1, 0, 0, 0, "Strong interest in expanding GPU allocation for AI workloads.", "Schedule technical deep-dive with engineering team. Follow up on pricing proposal by end of month.", "Evaluating expansion options", '["Follow up on pricing proposal", "Schedule technical deep-dive"]', '[{"name": "Jensen Huang", "email": "jensen@nvidia.com"}]'),
+            ("3", "Cisco - Jasper", "Tier 1", "Josh L.", "red", "2026-03-15", 1, 1, 0, 0, "Concerns about latency in APAC region. Need to address before renewal.", "Review APAC latency metrics urgently. Prepare renewal proposal with improved SLAs. Schedule exec alignment call.", "Latency concerns need resolution", '["Review APAC latency metrics", "Prepare renewal proposal", "Schedule exec alignment call"]', '[{"name": "Mike Hayes", "email": "mhayes@cisco.com"}, {"name": "Chuck Robbins", "email": "crobbins@cisco.com"}]')
+        ]
+        cursor.executemany('''
+            INSERT INTO accounts (id, name, tier, owner, health_sentiment, next_qbr_date, qbr_q1, qbr_q2, qbr_q3, qbr_q4, key_learnings, next_steps, latest_update, action_items, contacts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', sample_accounts)
+        conn.commit()
+    conn.close()
+
+def row_to_account(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "tier": row["tier"],
+        "owner": row["owner"],
+        "healthSentiment": row["health_sentiment"],
+        "nextQbrDate": row["next_qbr_date"],
+        "qbrCompletion": {
+            "q1": bool(row["qbr_q1"]),
+            "q2": bool(row["qbr_q2"]),
+            "q3": bool(row["qbr_q3"]),
+            "q4": bool(row["qbr_q4"])
+        },
+        "keyLearnings": row["key_learnings"] or "",
+        "nextSteps": row["next_steps"] if "next_steps" in row.keys() else "",
+        "latestUpdate": row["latest_update"] if "latest_update" in row.keys() else "",
+        "actionItems": json.loads(row["action_items"]),
+        "contacts": json.loads(row["contacts"])
     }
-]
+
+def get_all_accounts():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM accounts ORDER BY name")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row_to_account(row) for row in rows]
+
+def get_account_by_id(account_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM accounts WHERE id = ?", (account_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row_to_account(row) if row else None
+
+def save_account(account_data: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO accounts (id, name, tier, owner, health_sentiment, next_qbr_date, qbr_q1, qbr_q2, qbr_q3, qbr_q4, key_learnings, next_steps, latest_update, action_items, contacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        account_data["id"],
+        account_data["name"],
+        account_data["tier"],
+        account_data["owner"],
+        account_data["healthSentiment"],
+        account_data["nextQbrDate"],
+        1 if account_data["qbrCompletion"]["q1"] else 0,
+        1 if account_data["qbrCompletion"]["q2"] else 0,
+        1 if account_data["qbrCompletion"]["q3"] else 0,
+        1 if account_data["qbrCompletion"]["q4"] else 0,
+        account_data["keyLearnings"],
+        account_data.get("nextSteps", ""),
+        account_data.get("latestUpdate", ""),
+        json.dumps(account_data["actionItems"]),
+        json.dumps(account_data["contacts"])
+    ))
+    conn.commit()
+    conn.close()
+
+def delete_account_by_id(account_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+    conn.commit()
+    conn.close()
+
+# Initialize database on startup
+init_db()
 
 # --- HTML Template for Main Dashboard ---
 HTML_TEMPLATE = """
@@ -57,6 +152,7 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zenlayer Account Engagement</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -101,13 +197,21 @@ HTML_TEMPLATE = """
         
 
         <!-- Tier Filters -->
-        <div class="flex items-center space-x-2 mb-6">
-            <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
-                <button @click="tierFilter = t"
-                        :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
-                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
-                        x-text="t"></button>
-            </template>
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-2">
+                <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
+                    <button @click="tierFilter = t"
+                            :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
+                            class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
+                            x-text="t"></button>
+                </template>
+            </div>
+            <button @click="showInsights = !showInsights"
+                    :class="showInsights ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border-slate-200'"
+                    class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <span>Show Insights</span>
+            </button>
         </div>
 
         <!-- Account Table -->
@@ -116,6 +220,7 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
+                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
                         <th class="px-6 py-4 border-b border-slate-100">
                             <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">QBR Tracking</div>
                             <div class="flex">
@@ -132,36 +237,59 @@ HTML_TEMPLATE = """
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     <template x-for="account in filteredAccounts()" :key="account.id">
-                        <tr @click="goToAccount(account.id)" class="hover:bg-slate-50/50 transition-colors cursor-pointer">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                         :class="{
-                                             'bg-emerald-500': account.healthSentiment === 'green',
-                                             'bg-amber-400': account.healthSentiment === 'yellow',
-                                             'bg-rose-500': account.healthSentiment === 'red'
-                                         }"></div>
-                                    <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
-                                </div>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="flex">
-                                    <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                        <div class="w-6 flex justify-center">
-                                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
-                                                 class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                        <tr>
+                            <td colspan="6" class="p-0">
+                                <div @click="goToAccount(account.id)" class="hover:bg-slate-50/50 transition-colors cursor-pointer">
+                                    <div class="flex">
+                                        <div class="px-6 py-4 flex-1">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                     :class="{
+                                                         'bg-emerald-500': account.healthSentiment === 'green',
+                                                         'bg-amber-400': account.healthSentiment === 'yellow',
+                                                         'bg-rose-500': account.healthSentiment === 'red'
+                                                     }"></div>
+                                                <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
+                                            </div>
                                         </div>
-                                    </template>
+                                        <div class="px-6 py-4 w-48">
+                                            <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
+                                                  x-text="account.latestUpdate || '-'"></span>
+                                        </div>
+                                        <div class="px-6 py-4 w-32">
+                                            <div class="flex">
+                                                <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                                    <div class="w-6 flex justify-center">
+                                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
+                                                             class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <div class="px-6 py-4 w-32">
+                                            <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
+                                                  x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
+                                        </div>
+                                        <div class="px-6 py-4 w-24">
+                                            <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
+                                        </div>
+                                        <div class="px-6 py-4 w-28 text-sm text-slate-600" x-text="account.owner"></div>
+                                    </div>
+                                    <!-- Expandable Insights Row -->
+                                    <div x-show="showInsights" x-collapse class="border-t border-slate-100 bg-slate-50/30 px-6 py-4">
+                                        <div class="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Key Learnings</label>
+                                                <p class="text-sm text-slate-600" x-text="account.keyLearnings || 'No learnings recorded yet.'"></p>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Steps</label>
+                                                <p class="text-sm text-slate-600" x-text="account.nextSteps || 'No next steps defined yet.'"></p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4">
-                                <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
-                                      x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
-                            </td>
-                            <td class="px-6 py-4">
-                                <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
-                            </td>
-                            <td class="px-6 py-4 text-sm text-slate-600" x-text="account.owner"></td>
                         </tr>
                     </template>
                 </tbody>
@@ -207,6 +335,7 @@ HTML_TEMPLATE = """
                 search: '',
                 tierFilter: 'All',
                 showModal: false,
+                showInsights: false,
                 newAccount: { name: '', tier: 'Tier 2', owner: '' },
 
                 filteredAccounts() {
@@ -311,95 +440,107 @@ ACCOUNT_DETAILS_TEMPLATE = """
 
         <!-- View Mode -->
         <div x-show="!isEditing" class="space-y-6">
-            <!-- Basic Info Card -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
-                <div class="grid grid-cols-2 gap-6">
+            <!-- Hero Insights - Key Learnings & Next Steps -->
+            <div class="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <div class="grid grid-cols-2 gap-8">
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                        <p class="text-sm text-slate-900" x-text="account.name"></p>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
-                        <p class="text-sm text-slate-900" x-text="account.owner || 'Unassigned'"></p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
-                        <p class="text-sm text-slate-900" x-text="account.tier"></p>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
+                        <p x-show="account.keyLearnings" class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed" x-text="account.keyLearnings"></p>
+                        <p x-show="!account.keyLearnings" class="text-sm text-slate-400 italic">No key learnings recorded yet.</p>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
-                        <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
-                    <div class="flex items-center space-x-2">
-                        <div class="w-3 h-3 rounded-full"
-                             :class="{
-                                 'bg-emerald-500': account.healthSentiment === 'green',
-                                 'bg-amber-400': account.healthSentiment === 'yellow',
-                                 'bg-rose-500': account.healthSentiment === 'red'
-                             }"></div>
-                        <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                    <div class="flex space-x-2">
-                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                            <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                 class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
-                                 x-text="q"></div>
-                        </template>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Next Steps</label>
+                        <p x-show="account.nextSteps" class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed" x-text="account.nextSteps"></p>
+                        <p x-show="!account.nextSteps" class="text-sm text-slate-400 italic">No next steps defined yet.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Primary Contacts Card -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Primary Contacts</label>
-                <div x-show="account.contacts && account.contacts.length > 0" class="space-y-3">
-                    <template x-for="(contact, index) in account.contacts" :key="index">
-                        <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl">
-                            <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
-                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            <!-- Latest Update -->
+            <div x-show="account.latestUpdate" class="bg-blue-50 rounded-2xl border border-blue-100 p-6">
+                <div class="flex items-start space-x-3">
+                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Latest Update</label>
+                        <p class="text-sm text-blue-800 font-medium" x-text="account.latestUpdate"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content + Sidebar Layout -->
+            <div class="grid grid-cols-3 gap-6">
+                <!-- Main Content (2 columns) -->
+                <div class="col-span-2 space-y-6">
+                    <!-- Account Details Card -->
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
+                        <div class="grid grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full"
+                                         :class="{
+                                             'bg-emerald-500': account.healthSentiment === 'green',
+                                             'bg-amber-400': account.healthSentiment === 'yellow',
+                                             'bg-rose-500': account.healthSentiment === 'red'
+                                         }"></div>
+                                    <span class="text-sm text-slate-900" x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
+                                </div>
                             </div>
                             <div>
-                                <p class="text-sm font-medium text-slate-900" x-text="contact.name"></p>
-                                <p class="text-xs text-slate-500" x-text="contact.email"></p>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                                <p class="text-sm" :class="account.nextQbrDate ? 'text-slate-900' : 'text-slate-400'" x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></p>
                             </div>
                         </div>
-                    </template>
-                </div>
-                <p x-show="!account.contacts || account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet.</p>
-            </div>
 
-            <!-- Key Learnings Card -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings from Last QBR</label>
-                <p x-show="account.keyLearnings" class="text-sm text-slate-700 whitespace-pre-wrap" x-text="account.keyLearnings"></p>
-                <p x-show="!account.keyLearnings" class="text-sm text-slate-400">No key learnings recorded yet.</p>
-            </div>
-
-            <!-- Action Items Card -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Next Steps / Action Items</label>
-                <div x-show="account.actionItems && account.actionItems.length > 0" class="space-y-2">
-                    <template x-for="(item, index) in account.actionItems" :key="index">
-                        <div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-xl">
-                            <div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
+                            <div class="flex space-x-2">
+                                <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                    <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
+                                         class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold uppercase"
+                                         x-text="q"></div>
+                                </template>
                             </div>
-                            <p class="text-sm text-slate-700" x-text="item"></p>
                         </div>
-                    </template>
+                    </div>
+
+                    <!-- Action Items Card -->
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Action Items</label>
+                        <div x-show="account.actionItems && account.actionItems.length > 0" class="space-y-2">
+                            <template x-for="(item, index) in account.actionItems" :key="index">
+                                <div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-xl">
+                                    <div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
+                                    </div>
+                                    <p class="text-sm text-slate-700" x-text="item"></p>
+                                </div>
+                            </template>
+                        </div>
+                        <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400">No action items recorded yet.</p>
+                    </div>
                 </div>
-                <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400">No action items recorded yet.</p>
+
+                <!-- Contacts Sidebar (1 column) -->
+                <div class="col-span-1">
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sticky top-28">
+                        <div class="flex items-center space-x-2 mb-4">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacts</label>
+                        </div>
+                        <div x-show="account.contacts && account.contacts.length > 0" class="space-y-3">
+                            <template x-for="(contact, index) in account.contacts" :key="index">
+                                <div class="p-3 bg-slate-50 rounded-xl">
+                                    <p class="text-sm font-medium text-slate-900" x-text="contact.name"></p>
+                                    <a :href="'mailto:' + contact.email" class="text-xs text-blue-600 hover:text-blue-700" x-text="contact.email"></a>
+                                </div>
+                            </template>
+                        </div>
+                        <p x-show="!account.contacts || account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -498,17 +639,34 @@ ACCOUNT_DETAILS_TEMPLATE = """
                 <p x-show="account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet. Click "Add Contact" to add one.</p>
             </div>
 
-            <!-- Key Learnings Card -->
+            <!-- Latest Update Card -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings from Last QBR</label>
-                <textarea x-model="account.keyLearnings" rows="4" placeholder="Record insights and learnings from the last QBR..."
-                          class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Latest Update</label>
+                <input type="text" x-model="account.latestUpdate" placeholder="Short headline for current status..."
+                       class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                <p class="text-xs text-slate-400 mt-2">A brief status headline shown on the main dashboard.</p>
+            </div>
+
+            <!-- Key Learnings & Next Steps Card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings</label>
+                        <textarea x-model="account.keyLearnings" rows="5" placeholder="Record insights and learnings from the last QBR..."
+                                  class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Next Steps</label>
+                        <textarea x-model="account.nextSteps" rows="5" placeholder="Define the next steps and priorities..."
+                                  class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+                    </div>
+                </div>
             </div>
 
             <!-- Action Items Card -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
                 <div class="flex items-center justify-between mb-4">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Next Steps / Action Items</label>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Action Items</label>
                     <button type="button" @click="addActionItem()" class="text-xs font-semibold text-blue-600 hover:text-blue-700">+ Add Item</button>
                 </div>
                 <div class="space-y-3">
@@ -564,10 +722,12 @@ ACCOUNT_DETAILS_TEMPLATE = """
                 showDeleteConfirm: false,
 
                 init() {
-                    // Ensure arrays exist
+                    // Ensure arrays and fields exist
                     if (!this.account.contacts) this.account.contacts = [];
                     if (!this.account.actionItems) this.account.actionItems = [];
                     if (!this.account.keyLearnings) this.account.keyLearnings = '';
+                    if (!this.account.nextSteps) this.account.nextSteps = '';
+                    if (!this.account.latestUpdate) this.account.latestUpdate = '';
                 },
                 formatDate(dateStr) {
                     if (!dateStr) return 'TBD';
@@ -579,6 +739,8 @@ ACCOUNT_DETAILS_TEMPLATE = """
                     if (!this.account.contacts) this.account.contacts = [];
                     if (!this.account.actionItems) this.account.actionItems = [];
                     if (!this.account.keyLearnings) this.account.keyLearnings = '';
+                    if (!this.account.nextSteps) this.account.nextSteps = '';
+                    if (!this.account.latestUpdate) this.account.latestUpdate = '';
                 },
                 addContact() {
                     this.account.contacts.push({ name: '', email: '' });
@@ -606,6 +768,8 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         health_sentiment: this.account.healthSentiment,
                         next_qbr_date: this.account.nextQbrDate,
                         key_learnings: this.account.keyLearnings,
+                        next_steps: this.account.nextSteps,
+                        latest_update: this.account.latestUpdate,
                         contacts_json: JSON.stringify(this.account.contacts),
                         action_items_json: JSON.stringify(this.account.actionItems),
                         q1: this.account.qbrCompletion.q1 ? 'on' : '',
@@ -642,19 +806,20 @@ ACCOUNT_DETAILS_TEMPLATE = """
 @app.get("/", response_class=HTMLResponse)
 @app.get("", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    accounts_json = json.dumps(ACCOUNTS)
+    accounts = get_all_accounts()
+    accounts_json = json.dumps(accounts)
     return Template(HTML_TEMPLATE).render(accounts_json=accounts_json)
 
 @app.get("/account/{account_id}", response_class=HTMLResponse)
 async def account_details(account_id: str):
-    account = next((acc for acc in ACCOUNTS if acc["id"] == account_id), None)
+    account = get_account_by_id(account_id)
     if not account:
         return RedirectResponse(url="/qbr/", status_code=303)
     account_json = json.dumps(account)
     return Template(ACCOUNT_DETAILS_TEMPLATE).render(account=account, account_json=account_json)
 
 @app.post("/save")
-async def save_account(
+async def save_account_endpoint(
     id: Optional[str] = Form(None),
     name: str = Form(...),
     tier: str = Form(...),
@@ -662,6 +827,8 @@ async def save_account(
     health_sentiment: Optional[str] = Form("green"),
     next_qbr_date: Optional[str] = Form(""),
     key_learnings: Optional[str] = Form(""),
+    next_steps: Optional[str] = Form(""),
+    latest_update: Optional[str] = Form(""),
     contacts_json: Optional[str] = Form("[]"),
     action_items_json: Optional[str] = Form("[]"),
     q1: Optional[str] = Form(None),
@@ -691,43 +858,31 @@ async def save_account(
     except:
         action_items = []
 
+    account_id = id if id else str(uuid.uuid4())
+    account_data = {
+        "id": account_id,
+        "name": name,
+        "tier": tier,
+        "owner": owner,
+        "healthSentiment": health_sentiment or "green",
+        "nextQbrDate": next_qbr_date or "",
+        "keyLearnings": key_learnings or "",
+        "nextSteps": next_steps or "",
+        "latestUpdate": latest_update or "",
+        "contacts": contacts,
+        "actionItems": action_items,
+        "qbrCompletion": qbr
+    }
+    save_account(account_data)
+
     if id:
-        for acc in ACCOUNTS:
-            if acc["id"] == id:
-                acc.update({
-                    "name": name,
-                    "tier": tier,
-                    "owner": owner,
-                    "healthSentiment": health_sentiment or "green",
-                    "nextQbrDate": next_qbr_date or "",
-                    "keyLearnings": key_learnings or "",
-                    "contacts": contacts,
-                    "actionItems": action_items,
-                    "qbrCompletion": qbr
-                })
-                break
         return RedirectResponse(url=f"/qbr/account/{id}", status_code=303)
     else:
-        new_id = str(uuid.uuid4())
-        new_acc = {
-            "id": new_id,
-            "name": name,
-            "tier": tier,
-            "owner": owner,
-            "healthSentiment": health_sentiment or "green",
-            "nextQbrDate": next_qbr_date or "",
-            "keyLearnings": key_learnings or "",
-            "contacts": contacts,
-            "actionItems": action_items,
-            "qbrCompletion": qbr
-        }
-        ACCOUNTS.append(new_acc)
         return RedirectResponse(url="/qbr/", status_code=303)
 
 @app.post("/delete/{account_id}")
 async def delete_account(account_id: str):
-    global ACCOUNTS
-    ACCOUNTS = [acc for acc in ACCOUNTS if acc["id"] != account_id]
+    delete_account_by_id(account_id)
     return RedirectResponse(url="/qbr/", status_code=303)
 
 if __name__ == "__main__":
