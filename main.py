@@ -211,21 +211,13 @@ HTML_TEMPLATE = """
         </div>
 
         <!-- Tier Filters -->
-        <div class="flex items-center justify-between mb-6">
-            <div class="flex items-center space-x-2">
-                <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
-                    <button @click="tierFilter = t"
-                            :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
-                            class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
-                            x-text="t"></button>
-                </template>
-            </div>
-            <button @click="showInsights = !showInsights"
-                    :class="showInsights ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border-slate-200'"
-                    class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center space-x-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                <span>Show Insights</span>
-            </button>
+        <div class="flex items-center space-x-2 mb-6">
+            <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
+                <button @click="tierFilter = t"
+                        :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
+                        x-text="t"></button>
+            </template>
         </div>
 
         <!-- Account Table -->
@@ -253,52 +245,96 @@ HTML_TEMPLATE = """
                     <template x-for="account in filteredAccounts()" :key="account.id">
                         <tr>
                             <td colspan="6" class="p-0">
-                                <div @click="goToAccount(account.id)" class="hover:bg-slate-50/50 transition-colors cursor-pointer">
-                                    <div class="flex">
-                                        <div class="px-6 py-4 flex-1">
-                                            <div class="flex items-center space-x-3">
-                                                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                     :class="{
-                                                         'bg-emerald-500': account.healthSentiment === 'green',
-                                                         'bg-amber-400': account.healthSentiment === 'yellow',
-                                                         'bg-rose-500': account.healthSentiment === 'red'
-                                                     }"></div>
-                                                <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
-                                            </div>
+                                <!-- Main Row -->
+                                <div class="flex hover:bg-slate-50/50 transition-colors">
+                                    <!-- Chevron Toggle -->
+                                    <div class="flex items-center pl-4">
+                                        <button @click.stop="toggleExpand(account.id)"
+                                                class="p-1 rounded hover:bg-slate-100 transition-colors"
+                                                :class="expandedAccountId === account.id ? 'text-slate-700' : 'text-slate-400'">
+                                            <svg class="w-4 h-4 transition-transform duration-200"
+                                                 :class="expandedAccountId === account.id ? 'rotate-90' : ''"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <!-- Account Name -->
+                                    <div @click="goToAccount(account.id)" class="px-3 py-4 flex-1 cursor-pointer">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                 :class="{
+                                                     'bg-emerald-500': account.healthSentiment === 'green',
+                                                     'bg-amber-400': account.healthSentiment === 'yellow',
+                                                     'bg-rose-500': account.healthSentiment === 'red'
+                                                 }"></div>
+                                            <span class="font-semibold text-slate-900 text-sm" x-text="account.name"></span>
                                         </div>
-                                        <div class="px-6 py-4 w-48">
-                                            <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
-                                                  x-text="account.latestUpdate || '-'"></span>
+                                    </div>
+                                    <!-- Latest Update -->
+                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-48 cursor-pointer">
+                                        <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
+                                              x-text="account.latestUpdate || '-'"></span>
+                                    </div>
+                                    <!-- QBR Tracking -->
+                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-32 cursor-pointer">
+                                        <div class="flex">
+                                            <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                                                <div class="w-6 flex justify-center">
+                                                    <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
+                                                         class="w-2.5 h-2.5 rounded-full transition-all"></div>
+                                                </div>
+                                            </template>
                                         </div>
-                                        <div class="px-6 py-4 w-32">
-                                            <div class="flex">
-                                                <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                                    <div class="w-6 flex justify-center">
-                                                        <div :class="account.qbrCompletion[q] ? 'bg-emerald-500' : 'bg-slate-200'"
-                                                             class="w-2.5 h-2.5 rounded-full transition-all"></div>
-                                                    </div>
+                                    </div>
+                                    <!-- Next QBR -->
+                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-32 cursor-pointer">
+                                        <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
+                                              x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
+                                    </div>
+                                    <!-- Tier -->
+                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-24 cursor-pointer">
+                                        <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
+                                    </div>
+                                    <!-- Owner -->
+                                    <div @click="goToAccount(account.id)" class="px-6 py-4 w-28 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
+                                </div>
+                                <!-- Expandable Insights Row -->
+                                <div x-show="expandedAccountId === account.id" x-collapse
+                                     class="border-t border-b border-slate-200" style="background-color: #F8FAFC;">
+                                    <div class="px-6 py-5 ml-8">
+                                        <div class="grid grid-cols-2 gap-8">
+                                            <div>
+                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
+                                                <template x-if="account.keyLearnings">
+                                                    <ul class="space-y-1.5">
+                                                        <template x-for="line in account.keyLearnings.split('\\n').filter(l => l.trim())">
+                                                            <li class="flex items-start space-x-2 text-sm text-slate-600">
+                                                                <span class="text-slate-400 mt-1.5">•</span>
+                                                                <span x-text="line.replace(/^[-•*]\s*/, '')"></span>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </template>
+                                                <template x-if="!account.keyLearnings">
+                                                    <p class="text-sm text-slate-400 italic">No learnings recorded yet.</p>
                                                 </template>
                                             </div>
-                                        </div>
-                                        <div class="px-6 py-4 w-32">
-                                            <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
-                                                  x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
-                                        </div>
-                                        <div class="px-6 py-4 w-24">
-                                            <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
-                                        </div>
-                                        <div class="px-6 py-4 w-28 text-sm text-slate-600" x-text="account.owner"></div>
-                                    </div>
-                                    <!-- Expandable Insights Row -->
-                                    <div x-show="showInsights" x-collapse class="border-t border-slate-100 bg-slate-50/30 px-6 py-4">
-                                        <div class="grid grid-cols-2 gap-6">
                                             <div>
-                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Key Learnings</label>
-                                                <p class="text-sm text-slate-600" x-text="account.keyLearnings || 'No learnings recorded yet.'"></p>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Steps</label>
-                                                <p class="text-sm text-slate-600" x-text="account.nextSteps || 'No next steps defined yet.'"></p>
+                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Next Steps</label>
+                                                <template x-if="account.nextSteps">
+                                                    <ul class="space-y-1.5">
+                                                        <template x-for="line in account.nextSteps.split('\\n').filter(l => l.trim())">
+                                                            <li class="flex items-start space-x-2 text-sm text-slate-600">
+                                                                <span class="text-slate-400 mt-1.5">•</span>
+                                                                <span x-text="line.replace(/^[-•*]\s*/, '')"></span>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </template>
+                                                <template x-if="!account.nextSteps">
+                                                    <p class="text-sm text-slate-400 italic">No next steps defined yet.</p>
+                                                </template>
                                             </div>
                                         </div>
                                     </div>
@@ -349,7 +385,7 @@ HTML_TEMPLATE = """
                 search: '',
                 tierFilter: 'All',
                 showModal: false,
-                showInsights: false,
+                expandedAccountId: null,
                 newAccount: { name: '', tier: 'Tier 2', owner: '' },
 
                 filteredAccounts() {
@@ -358,6 +394,9 @@ HTML_TEMPLATE = """
                         const matchesTier = this.tierFilter === 'All' || acc.tier === this.tierFilter;
                         return matchesSearch && matchesTier;
                     });
+                },
+                toggleExpand(id) {
+                    this.expandedAccountId = this.expandedAccountId === id ? null : id;
                 },
                 openModal() {
                     this.newAccount = { name: '', tier: 'Tier 2', owner: '' };
