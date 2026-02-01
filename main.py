@@ -210,14 +210,37 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <!-- Tier Filters -->
-        <div class="flex items-center space-x-2 mb-6">
-            <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
-                <button @click="tierFilter = t"
-                        :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
-                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
-                        x-text="t"></button>
-            </template>
+        <!-- Tier & Health Filters -->
+        <div class="flex items-center space-x-6 mb-6">
+            <!-- Tier Filters -->
+            <div class="flex items-center space-x-2">
+                <template x-for="t in ['All', 'Tier 1', 'Tier 2', 'Tier 3']">
+                    <button @click="tierFilter = t"
+                            :class="tierFilter === t ? 'bg-white shadow-sm text-slate-900 border-slate-200' : 'text-slate-500 border-transparent'"
+                            class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border"
+                            x-text="t"></button>
+                </template>
+            </div>
+            <!-- Health Sentiment Filters -->
+            <div class="flex items-center space-x-2">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Health:</span>
+                <button @click="healthFilter = 'All'"
+                        :class="healthFilter === 'All' ? 'ring-2 ring-slate-400 ring-offset-1' : ''"
+                        class="w-6 h-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 transition-all hover:scale-110"
+                        title="All"></button>
+                <button @click="healthFilter = 'green'"
+                        :class="healthFilter === 'green' ? 'ring-2 ring-emerald-500 ring-offset-1' : ''"
+                        class="w-6 h-6 rounded-full bg-emerald-500 transition-all hover:scale-110"
+                        title="Healthy"></button>
+                <button @click="healthFilter = 'yellow'"
+                        :class="healthFilter === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-1' : ''"
+                        class="w-6 h-6 rounded-full bg-amber-400 transition-all hover:scale-110"
+                        title="Concern"></button>
+                <button @click="healthFilter = 'red'"
+                        :class="healthFilter === 'red' ? 'ring-2 ring-rose-500 ring-offset-1' : ''"
+                        class="w-6 h-6 rounded-full bg-rose-500 transition-all hover:scale-110"
+                        title="At Risk"></button>
+            </div>
         </div>
 
         <!-- Account Table -->
@@ -226,7 +249,14 @@ HTML_TEMPLATE = """
                 <thead>
                     <tr class="bg-slate-50/30">
                         <th class="w-10 border-b border-slate-100"></th>
-                        <th class="w-56 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Account</th>
+                        <th @click="toggleSort('name')" class="w-56 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
+                            <div class="flex items-center space-x-1">
+                                <span>Account</span>
+                                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': sortBy === 'name' && sortDir === 'desc', 'text-slate-600': sortBy === 'name', 'text-slate-300': sortBy !== 'name' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                </svg>
+                            </div>
+                        </th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Latest Update</th>
                         <th class="w-28 px-4 py-4 border-b border-slate-100">
                             <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">QBR Tracking</div>
@@ -239,7 +269,14 @@ HTML_TEMPLATE = """
                         </th>
                         <th class="w-28 px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
                         <th class="w-16 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
-                        <th class="w-20 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Owner</th>
+                        <th @click="toggleSort('owner')" class="w-24 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
+                            <div class="flex items-center space-x-1">
+                                <span>Owner</span>
+                                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': sortBy === 'owner' && sortDir === 'desc', 'text-slate-600': sortBy === 'owner', 'text-slate-300': sortBy !== 'owner' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                </svg>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -298,7 +335,7 @@ HTML_TEMPLATE = """
                                         <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div @click="goToAccount(account.id)" class="w-20 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
+                                    <div @click="goToAccount(account.id)" class="w-24 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
                                 </div>
                                 <!-- Expandable Insights Row -->
                                 <div x-show="expandedAccountId === account.id" x-collapse
@@ -392,16 +429,39 @@ HTML_TEMPLATE = """
                 accounts: {{ accounts_json | safe }},
                 search: '',
                 tierFilter: 'All',
+                healthFilter: 'All',
+                sortBy: 'name',
+                sortDir: 'asc',
                 showModal: false,
                 expandedAccountId: null,
                 newAccount: { name: '', tier: 'Tier 2', owner: '' },
 
                 filteredAccounts() {
-                    return this.accounts.filter(acc => {
+                    let results = this.accounts.filter(acc => {
                         const matchesSearch = acc.name.toLowerCase().includes(this.search.toLowerCase());
                         const matchesTier = this.tierFilter === 'All' || acc.tier === this.tierFilter;
-                        return matchesSearch && matchesTier;
+                        const matchesHealth = this.healthFilter === 'All' || acc.healthSentiment === this.healthFilter;
+                        return matchesSearch && matchesTier && matchesHealth;
                     });
+
+                    // Apply sorting
+                    results.sort((a, b) => {
+                        let aVal = this.sortBy === 'name' ? a.name.toLowerCase() : (a.owner || '').toLowerCase();
+                        let bVal = this.sortBy === 'name' ? b.name.toLowerCase() : (b.owner || '').toLowerCase();
+                        if (aVal < bVal) return this.sortDir === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return this.sortDir === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+
+                    return results;
+                },
+                toggleSort(column) {
+                    if (this.sortBy === column) {
+                        this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortBy = column;
+                        this.sortDir = 'asc';
+                    }
                 },
                 toggleExpand(id) {
                     this.expandedAccountId = this.expandedAccountId === id ? null : id;
@@ -516,7 +576,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         <!-- Next QBR Badge -->
                         <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <span x-text="account.nextQbrDate ? 'QBR: ' + formatDate(account.nextQbrDate) : 'QBR: TBD'"></span>
+                            <span x-text="account.nextQbrDate ? 'Next QBR: ' + formatDate(account.nextQbrDate) : 'Next QBR: TBD'"></span>
                         </div>
                     </div>
                 </div>
@@ -548,7 +608,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
                             <ul class="space-y-2">
                                 <template x-for="(item, index) in account.actionItems" :key="index">
                                     <li class="flex items-start space-x-2 text-sm text-slate-700">
-                                        <span class="text-blue-500 font-semibold mt-0.5" x-text="(index + 1) + '.'"></span>
+                                        <span class="text-slate-400 mt-0.5">•</span>
                                         <span x-text="item"></span>
                                     </li>
                                 </template>
