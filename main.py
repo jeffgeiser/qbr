@@ -60,6 +60,7 @@ HTML_TEMPLATE = """
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        [x-cloak] { display: none !important; }
         body { font-family: 'Inter', sans-serif; background-color: #fcfcfd; }
         .donut-logo {
             background: linear-gradient(to right, #33d4ff, #0076ff) border-box;
@@ -253,6 +254,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        [x-cloak] { display: none !important; }
         body { font-family: 'Inter', sans-serif; background-color: #fcfcfd; }
         .donut-logo {
             background: linear-gradient(to right, #33d4ff, #0076ff) border-box;
