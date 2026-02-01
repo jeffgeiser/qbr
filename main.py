@@ -5,48 +5,125 @@ from jinja2 import Template
 from typing import List, Optional, Dict
 import json
 import uuid
+import sqlite3
+import os
 
 app = FastAPI(root_path="/qbr")
 
-# --- Initial Data ---
-ACCOUNTS = [
-    {
-        "id": "1",
-        "name": "Zoom Video Communications Inc.",
-        "tier": "Tier 1",
-        "owner": "Carlos",
-        "healthSentiment": "green",
-        "nextQbrDate": "",
-        "qbrCompletion": {"q1": False, "q2": False, "q3": False, "q4": False},
-        "keyLearnings": "",
-        "actionItems": [],
-        "contacts": [{"name": "Eric Yuan", "email": "eric@zoom.com"}, {"name": "Kelly Steckelberg", "email": "kelly@zoom.com"}]
-    },
-    {
-        "id": "2",
-        "name": "Nvidia Corporation",
-        "tier": "Tier 1",
-        "owner": "Wade",
-        "healthSentiment": "yellow",
-        "nextQbrDate": "",
-        "qbrCompletion": {"q1": True, "q2": False, "q3": False, "q4": False},
-        "keyLearnings": "Strong interest in expanding GPU allocation for AI workloads.",
-        "actionItems": ["Follow up on pricing proposal", "Schedule technical deep-dive"],
-        "contacts": [{"name": "Jensen Huang", "email": "jensen@nvidia.com"}]
-    },
-    {
-        "id": "3",
-        "name": "Cisco - Jasper",
-        "tier": "Tier 1",
-        "owner": "Josh L.",
-        "healthSentiment": "red",
-        "nextQbrDate": "2026-03-15",
-        "qbrCompletion": {"q1": True, "q2": True, "q3": False, "q4": False},
-        "keyLearnings": "Concerns about latency in APAC region. Need to address before renewal.",
-        "actionItems": ["Review APAC latency metrics", "Prepare renewal proposal", "Schedule exec alignment call"],
-        "contacts": [{"name": "Mike Hayes", "email": "mhayes@cisco.com"}, {"name": "Chuck Robbins", "email": "crobbins@cisco.com"}]
+# --- Database Setup ---
+DB_PATH = os.environ.get("DB_PATH", "/app/data/accounts.db")
+
+def get_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS accounts (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            tier TEXT NOT NULL,
+            owner TEXT DEFAULT '',
+            health_sentiment TEXT DEFAULT 'green',
+            next_qbr_date TEXT DEFAULT '',
+            qbr_q1 INTEGER DEFAULT 0,
+            qbr_q2 INTEGER DEFAULT 0,
+            qbr_q3 INTEGER DEFAULT 0,
+            qbr_q4 INTEGER DEFAULT 0,
+            key_learnings TEXT DEFAULT '',
+            action_items TEXT DEFAULT '[]',
+            contacts TEXT DEFAULT '[]'
+        )
+    ''')
+    conn.commit()
+
+    # Seed with sample data if table is empty
+    cursor.execute("SELECT COUNT(*) FROM accounts")
+    if cursor.fetchone()[0] == 0:
+        sample_accounts = [
+            ("1", "Zoom Video Communications Inc.", "Tier 1", "Carlos", "green", "", 0, 0, 0, 0, "", "[]", '[{"name": "Eric Yuan", "email": "eric@zoom.com"}, {"name": "Kelly Steckelberg", "email": "kelly@zoom.com"}]'),
+            ("2", "Nvidia Corporation", "Tier 1", "Wade", "yellow", "", 1, 0, 0, 0, "Strong interest in expanding GPU allocation for AI workloads.", '["Follow up on pricing proposal", "Schedule technical deep-dive"]', '[{"name": "Jensen Huang", "email": "jensen@nvidia.com"}]'),
+            ("3", "Cisco - Jasper", "Tier 1", "Josh L.", "red", "2026-03-15", 1, 1, 0, 0, "Concerns about latency in APAC region. Need to address before renewal.", '["Review APAC latency metrics", "Prepare renewal proposal", "Schedule exec alignment call"]', '[{"name": "Mike Hayes", "email": "mhayes@cisco.com"}, {"name": "Chuck Robbins", "email": "crobbins@cisco.com"}]')
+        ]
+        cursor.executemany('''
+            INSERT INTO accounts (id, name, tier, owner, health_sentiment, next_qbr_date, qbr_q1, qbr_q2, qbr_q3, qbr_q4, key_learnings, action_items, contacts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', sample_accounts)
+        conn.commit()
+    conn.close()
+
+def row_to_account(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "tier": row["tier"],
+        "owner": row["owner"],
+        "healthSentiment": row["health_sentiment"],
+        "nextQbrDate": row["next_qbr_date"],
+        "qbrCompletion": {
+            "q1": bool(row["qbr_q1"]),
+            "q2": bool(row["qbr_q2"]),
+            "q3": bool(row["qbr_q3"]),
+            "q4": bool(row["qbr_q4"])
+        },
+        "keyLearnings": row["key_learnings"],
+        "actionItems": json.loads(row["action_items"]),
+        "contacts": json.loads(row["contacts"])
     }
-]
+
+def get_all_accounts():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM accounts ORDER BY name")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row_to_account(row) for row in rows]
+
+def get_account_by_id(account_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM accounts WHERE id = ?", (account_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row_to_account(row) if row else None
+
+def save_account(account_data: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO accounts (id, name, tier, owner, health_sentiment, next_qbr_date, qbr_q1, qbr_q2, qbr_q3, qbr_q4, key_learnings, action_items, contacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        account_data["id"],
+        account_data["name"],
+        account_data["tier"],
+        account_data["owner"],
+        account_data["healthSentiment"],
+        account_data["nextQbrDate"],
+        1 if account_data["qbrCompletion"]["q1"] else 0,
+        1 if account_data["qbrCompletion"]["q2"] else 0,
+        1 if account_data["qbrCompletion"]["q3"] else 0,
+        1 if account_data["qbrCompletion"]["q4"] else 0,
+        account_data["keyLearnings"],
+        json.dumps(account_data["actionItems"]),
+        json.dumps(account_data["contacts"])
+    ))
+    conn.commit()
+    conn.close()
+
+def delete_account_by_id(account_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+    conn.commit()
+    conn.close()
+
+# Initialize database on startup
+init_db()
 
 # --- HTML Template for Main Dashboard ---
 HTML_TEMPLATE = """
@@ -656,12 +733,13 @@ ACCOUNT_DETAILS_TEMPLATE = """
 @app.get("/", response_class=HTMLResponse)
 @app.get("", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    accounts_json = json.dumps(ACCOUNTS)
+    accounts = get_all_accounts()
+    accounts_json = json.dumps(accounts)
     return Template(HTML_TEMPLATE).render(accounts_json=accounts_json)
 
 @app.get("/account/{account_id}", response_class=HTMLResponse)
 async def account_details(account_id: str):
-    account = next((acc for acc in ACCOUNTS if acc["id"] == account_id), None)
+    account = get_account_by_id(account_id)
     if not account:
         return RedirectResponse(url="/qbr/", status_code=303)
     account_json = json.dumps(account)
@@ -705,43 +783,29 @@ async def save_account(
     except:
         action_items = []
 
+    account_id = id if id else str(uuid.uuid4())
+    account_data = {
+        "id": account_id,
+        "name": name,
+        "tier": tier,
+        "owner": owner,
+        "healthSentiment": health_sentiment or "green",
+        "nextQbrDate": next_qbr_date or "",
+        "keyLearnings": key_learnings or "",
+        "contacts": contacts,
+        "actionItems": action_items,
+        "qbrCompletion": qbr
+    }
+    save_account(account_data)
+
     if id:
-        for acc in ACCOUNTS:
-            if acc["id"] == id:
-                acc.update({
-                    "name": name,
-                    "tier": tier,
-                    "owner": owner,
-                    "healthSentiment": health_sentiment or "green",
-                    "nextQbrDate": next_qbr_date or "",
-                    "keyLearnings": key_learnings or "",
-                    "contacts": contacts,
-                    "actionItems": action_items,
-                    "qbrCompletion": qbr
-                })
-                break
         return RedirectResponse(url=f"/qbr/account/{id}", status_code=303)
     else:
-        new_id = str(uuid.uuid4())
-        new_acc = {
-            "id": new_id,
-            "name": name,
-            "tier": tier,
-            "owner": owner,
-            "healthSentiment": health_sentiment or "green",
-            "nextQbrDate": next_qbr_date or "",
-            "keyLearnings": key_learnings or "",
-            "contacts": contacts,
-            "actionItems": action_items,
-            "qbrCompletion": qbr
-        }
-        ACCOUNTS.append(new_acc)
         return RedirectResponse(url="/qbr/", status_code=303)
 
 @app.post("/delete/{account_id}")
 async def delete_account(account_id: str):
-    global ACCOUNTS
-    ACCOUNTS = [acc for acc in ACCOUNTS if acc["id"] != account_id]
+    delete_account_by_id(account_id)
     return RedirectResponse(url="/qbr/", status_code=303)
 
 if __name__ == "__main__":

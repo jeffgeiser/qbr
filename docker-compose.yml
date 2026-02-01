@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  qbr:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - qbr-data:/app/data
+    environment:
+      - DB_PATH=/app/data/accounts.db
+    restart: unless-stopped
+
+volumes:
+  qbr-data:
