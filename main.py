@@ -174,7 +174,6 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zenlayer Account Engagement</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -233,20 +232,19 @@ HTML_TEMPLATE = """
             <div class="flex items-center space-x-2">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Health:</span>
                 <button @click="healthFilter = 'All'"
-                        :class="healthFilter === 'All' ? 'ring-2 ring-slate-400 ring-offset-1' : ''"
-                        class="w-6 h-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 transition-all hover:scale-110"
-                        title="All"></button>
+                        :class="healthFilter === 'All' ? 'bg-slate-200 text-slate-700' : 'text-slate-500'"
+                        class="px-3 py-1 rounded-lg text-xs font-semibold transition-all hover:bg-slate-100">All</button>
                 <button @click="healthFilter = 'green'"
                         :class="healthFilter === 'green' ? 'ring-2 ring-emerald-500 ring-offset-1' : ''"
-                        class="w-6 h-6 rounded-full bg-emerald-500 transition-all hover:scale-110"
+                        class="w-4 h-4 rounded-full bg-emerald-500 transition-all hover:scale-110"
                         title="Healthy"></button>
                 <button @click="healthFilter = 'yellow'"
                         :class="healthFilter === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-1' : ''"
-                        class="w-6 h-6 rounded-full bg-amber-400 transition-all hover:scale-110"
+                        class="w-4 h-4 rounded-full bg-amber-400 transition-all hover:scale-110"
                         title="Concern"></button>
                 <button @click="healthFilter = 'red'"
                         :class="healthFilter === 'red' ? 'ring-2 ring-rose-500 ring-offset-1' : ''"
-                        class="w-6 h-6 rounded-full bg-rose-500 transition-all hover:scale-110"
+                        class="w-4 h-4 rounded-full bg-rose-500 transition-all hover:scale-110"
                         title="At Risk"></button>
             </div>
         </div>
@@ -256,7 +254,7 @@ HTML_TEMPLATE = """
             <table class="w-full text-left table-fixed">
                 <thead>
                     <tr class="bg-slate-50/30">
-                        <th class="w-10 border-b border-slate-100"></th>
+                        <th class="w-10 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-widest"></th>
                         <th @click="toggleSort('name')" class="w-56 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
                             <div class="flex items-center space-x-1">
                                 <span>Account</span>
@@ -276,8 +274,7 @@ HTML_TEMPLATE = """
                             </div>
                         </th>
                         <th class="w-28 px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
-                        <th class="w-16 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
-                        <th @click="toggleSort('owner')" class="w-24 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
+                        <th @click="toggleSort('owner')" class="w-28 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
                             <div class="flex items-center space-x-1">
                                 <span>Owner</span>
                                 <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': sortBy === 'owner' && sortDir === 'desc', 'text-slate-600': sortBy === 'owner', 'text-slate-300': sortBy !== 'owner' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -290,20 +287,19 @@ HTML_TEMPLATE = """
                 <tbody class="divide-y divide-slate-50">
                     <template x-for="account in filteredAccounts()" :key="account.id">
                         <tr>
-                            <td colspan="7" class="p-0">
+                            <td colspan="6" class="p-0">
                                 <!-- Main Row -->
-                                <div class="flex hover:bg-slate-50/50 transition-colors">
-                                    <!-- Chevron Toggle -->
+                                <div class="flex hover:bg-slate-50/50 transition-colors items-center">
+                                    <!-- Edit Button -->
                                     <div class="w-10 flex items-center justify-center flex-shrink-0">
-                                        <button @click.stop="toggleExpand(account.id)"
-                                                class="p-1 rounded hover:bg-slate-100 transition-colors"
-                                                :class="expandedAccountId === account.id ? 'text-slate-700' : 'text-slate-400'">
-                                            <svg class="w-4 h-4 transition-transform duration-200"
-                                                 :class="expandedAccountId === account.id ? 'rotate-90' : ''"
-                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                        <a :href="'/qbr/account/' + account.id + '?edit=true'"
+                                           @click.stop
+                                           class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                           title="Edit">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                             </svg>
-                                        </button>
+                                        </a>
                                     </div>
                                     <!-- Account Name (fixed width, truncated) -->
                                     <div @click="goToAccount(account.id)" class="w-56 py-4 flex-shrink-0 cursor-pointer">
@@ -317,10 +313,10 @@ HTML_TEMPLATE = """
                                             <span class="font-semibold text-slate-900 text-sm truncate" x-text="truncate(account.name, 35)"></span>
                                         </div>
                                     </div>
-                                    <!-- Latest Update (flexible width) -->
+                                    <!-- Latest Update (flexible width, max 50 chars) -->
                                     <div @click="goToAccount(account.id)" class="flex-1 px-6 py-4 cursor-pointer">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
-                                              x-text="account.latestUpdate || '-'"></span>
+                                              x-text="truncate(account.latestUpdate, 50) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
                                     <div @click="goToAccount(account.id)" class="w-28 px-4 py-4 flex-shrink-0 cursor-pointer">
@@ -338,58 +334,8 @@ HTML_TEMPLATE = """
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
-                                    <!-- Tier -->
-                                    <div @click="goToAccount(account.id)" class="w-16 px-3 py-4 flex-shrink-0 cursor-pointer">
-                                        <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-100 text-slate-600 bg-slate-50/30"></span>
-                                    </div>
                                     <!-- Owner -->
-                                    <div @click="goToAccount(account.id)" class="w-24 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
-                                </div>
-                                <!-- Expandable Insights Row -->
-                                <div x-show="expandedAccountId === account.id" x-collapse
-                                     class="border-t border-b border-slate-200" style="background-color: #F8FAFC;">
-                                    <div class="py-5 pl-10 pr-6">
-                                        <!-- Full Latest Update -->
-                                        <div x-show="account.latestUpdate" class="mb-4 pb-4 border-b border-slate-200">
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Current Status</label>
-                                            <p class="text-sm text-slate-700 font-medium" x-text="account.latestUpdate"></p>
-                                        </div>
-                                        <!-- Two Column Layout -->
-                                        <div class="grid grid-cols-2 gap-8">
-                                            <div>
-                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
-                                                <template x-if="account.keyLearnings">
-                                                    <ul class="space-y-1.5">
-                                                        <template x-for="line in account.keyLearnings.split('\\n').filter(l => l.trim())">
-                                                            <li class="flex items-start space-x-2 text-sm text-slate-600">
-                                                                <span class="text-slate-400 mt-1.5">•</span>
-                                                                <span x-text="line.replace(/^[-•*]\s*/, '')"></span>
-                                                            </li>
-                                                        </template>
-                                                    </ul>
-                                                </template>
-                                                <template x-if="!account.keyLearnings">
-                                                    <p class="text-sm text-slate-400 italic">No learnings recorded yet.</p>
-                                                </template>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Action Items</label>
-                                                <template x-if="account.actionItems && account.actionItems.length > 0">
-                                                    <ul class="space-y-1.5">
-                                                        <template x-for="item in account.actionItems">
-                                                            <li class="flex items-start space-x-2 text-sm text-slate-600">
-                                                                <span class="text-slate-400 mt-1.5">•</span>
-                                                                <span x-text="item"></span>
-                                                            </li>
-                                                        </template>
-                                                    </ul>
-                                                </template>
-                                                <template x-if="!account.actionItems || account.actionItems.length === 0">
-                                                    <p class="text-sm text-slate-400 italic">No action items defined yet.</p>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <div @click="goToAccount(account.id)" class="w-28 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
                                 </div>
                             </td>
                         </tr>
@@ -441,7 +387,6 @@ HTML_TEMPLATE = """
                 sortBy: 'name',
                 sortDir: 'asc',
                 showModal: false,
-                expandedAccountId: null,
                 newAccount: { name: '', tier: 'Tier 2', owner: '' },
 
                 filteredAccounts() {
@@ -470,9 +415,6 @@ HTML_TEMPLATE = """
                         this.sortBy = column;
                         this.sortDir = 'asc';
                     }
-                },
-                toggleExpand(id) {
-                    this.expandedAccountId = this.expandedAccountId === id ? null : id;
                 },
                 truncate(text, length) {
                     if (!text) return '';
@@ -545,7 +487,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
         </div>
     </nav>
 
-    <main class="max-w-4xl mx-auto px-6 py-8">
+    <main class="max-w-4xl mx-auto pl-6 pr-6 py-8">
         <!-- Account Header with Metadata Badges -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
             <div class="flex items-start justify-between">
@@ -584,7 +526,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         <!-- Next QBR Badge -->
                         <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <span x-text="account.nextQbrDate ? 'Next QBR: ' + formatDate(account.nextQbrDate) : 'Next QBR: TBD'"></span>
+                            <span x-text="'Next QBR: ' + (account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD')"></span>
                         </div>
                     </div>
                 </div>
@@ -691,7 +633,7 @@ ACCOUNT_DETAILS_TEMPLATE = """
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Scheduled QBR</label>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next QBR</label>
                         <input type="date" name="next_qbr_date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
                     </div>
                 </div>
@@ -764,9 +706,9 @@ ACCOUNT_DETAILS_TEMPLATE = """
             <!-- Latest Update Card -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Latest Update</label>
-                <input type="text" x-model="account.latestUpdate" placeholder="Short headline for current status..."
+                <input type="text" x-model="account.latestUpdate" maxlength="50" placeholder="Short headline for current status..."
                        class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                <p class="text-xs text-slate-400 mt-2">A brief status headline shown on the main dashboard.</p>
+                <p class="text-xs text-slate-400 mt-2">A brief status headline shown on the main dashboard. Max 50 characters.</p>
             </div>
 
             <!-- Key Learnings & Next Steps Card -->
@@ -850,6 +792,11 @@ ACCOUNT_DETAILS_TEMPLATE = """
                     if (!this.account.keyLearnings) this.account.keyLearnings = '';
                     if (!this.account.nextSteps) this.account.nextSteps = '';
                     if (!this.account.latestUpdate) this.account.latestUpdate = '';
+                    // Check for edit mode in URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (urlParams.get('edit') === 'true') {
+                        this.isEditing = true;
+                    }
                 },
                 formatDate(dateStr) {
                     if (!dateStr) return 'TBD';
