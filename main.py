@@ -297,7 +297,7 @@ HTML_TEMPLATE = """
                                 </svg>
                             </div>
                         </th>
-                        <th @click="toggleSort('owner')" class="w-28 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
+                        <th @click="toggleSort('owner')" class="w-32 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
                             <div class="flex items-center space-x-1">
                                 <span>Owner</span>
                                 <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': sortBy === 'owner' && sortDir === 'desc', 'text-slate-600': sortBy === 'owner', 'text-slate-300': sortBy !== 'owner' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -336,9 +336,9 @@ HTML_TEMPLATE = """
                                             <span class="font-semibold text-slate-900 text-sm truncate" x-text="truncate(account.name, 35)"></span>
                                         </div>
                                     </div>
-                                    <!-- Latest Update (flexible width, max 50 chars) -->
-                                    <div class="flex-1 px-6 py-2.5">
-                                        <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
+                                    <!-- Latest Update (fixed width, max 50 chars, no wrap) -->
+                                    <div class="flex-1 min-w-0 px-6 py-2.5">
+                                        <span class="text-sm truncate block whitespace-nowrap overflow-hidden" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="truncate(account.latestUpdate, 50) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
@@ -353,16 +353,16 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Next QBR -->
-                                    <div class="w-28 px-4 py-2.5 flex-shrink-0">
+                                    <div class="w-28 px-4 py-2.5 flex-shrink-0 whitespace-nowrap">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
                                     <!-- Tier -->
-                                    <div class="w-20 px-3 py-2.5 flex-shrink-0">
+                                    <div class="w-20 px-3 py-2.5 flex-shrink-0 whitespace-nowrap">
                                         <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div class="w-28 px-3 py-2.5 flex-shrink-0 text-sm text-slate-600" x-text="account.owner"></div>
+                                    <div class="w-32 px-3 py-2.5 flex-shrink-0 text-sm text-slate-600 whitespace-nowrap truncate" x-text="account.owner"></div>
                                 </div>
                                 <!-- Expandable Details Row -->
                                 <div x-show="expandedAccountId === account.id" x-collapse
