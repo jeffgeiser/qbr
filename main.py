@@ -289,6 +289,7 @@ HTML_TEMPLATE = """
                             </div>
                         </th>
                         <th class="w-28 px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
+                        <th class="w-20 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
                         <th @click="toggleSort('owner')" class="w-28 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
                             <div class="flex items-center space-x-1">
                                 <span>Owner</span>
@@ -302,7 +303,7 @@ HTML_TEMPLATE = """
                 <tbody class="divide-y divide-slate-50">
                     <template x-for="account in filteredAccounts()" :key="account.id">
                         <tr>
-                            <td colspan="6" class="p-0">
+                            <td colspan="7" class="p-0">
                                 <!-- Main Row -->
                                 <div @click="toggleExpand(account.id)" class="flex hover:bg-slate-50/50 transition-colors items-center cursor-pointer">
                                     <!-- Chevron Toggle -->
@@ -348,6 +349,10 @@ HTML_TEMPLATE = """
                                     <div class="w-28 px-4 py-4 flex-shrink-0">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
+                                    </div>
+                                    <!-- Tier -->
+                                    <div class="w-20 px-3 py-4 flex-shrink-0">
+                                        <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50"></span>
                                     </div>
                                     <!-- Owner -->
                                     <div class="w-28 px-3 py-4 flex-shrink-0 text-sm text-slate-600" x-text="account.owner"></div>
