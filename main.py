@@ -312,7 +312,7 @@ HTML_TEMPLATE = """
                         <tr>
                             <td colspan="7" class="p-0">
                                 <!-- Main Row -->
-                                <div @click="toggleExpand(account.id)" class="flex hover:bg-slate-50/50 transition-colors items-center cursor-pointer">
+                                <div @click="toggleExpand(account.id)" class="flex hover:bg-slate-100 transition-colors items-center cursor-pointer">
                                     <!-- Chevron Toggle -->
                                     <div class="w-10 flex items-center justify-center flex-shrink-0">
                                         <div class="p-1 rounded transition-colors"
@@ -325,7 +325,7 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Account Name (fixed width, truncated) -->
-                                    <div class="w-56 py-4 flex-shrink-0">
+                                    <div class="w-56 py-2.5 flex-shrink-0">
                                         <div class="flex items-center space-x-3">
                                             <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                  :class="{
@@ -337,12 +337,12 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Latest Update (flexible width, max 50 chars) -->
-                                    <div class="flex-1 px-6 py-4">
+                                    <div class="flex-1 px-6 py-2.5">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="truncate(account.latestUpdate, 50) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
-                                    <div class="w-28 px-4 py-4 flex-shrink-0">
+                                    <div class="w-28 px-4 py-2.5 flex-shrink-0">
                                         <div class="flex">
                                             <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
                                                 <div class="w-6 flex justify-center">
@@ -353,16 +353,16 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Next QBR -->
-                                    <div class="w-28 px-4 py-4 flex-shrink-0">
+                                    <div class="w-28 px-4 py-2.5 flex-shrink-0">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
                                     <!-- Tier -->
-                                    <div class="w-20 px-3 py-4 flex-shrink-0">
+                                    <div class="w-20 px-3 py-2.5 flex-shrink-0">
                                         <span x-text="account.tier" class="px-2 py-0.5 rounded-md text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div class="w-28 px-3 py-4 flex-shrink-0 text-sm text-slate-600" x-text="account.owner"></div>
+                                    <div class="w-28 px-3 py-2.5 flex-shrink-0 text-sm text-slate-600" x-text="account.owner"></div>
                                 </div>
                                 <!-- Expandable Details Row -->
                                 <div x-show="expandedAccountId === account.id" x-collapse
