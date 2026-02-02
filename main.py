@@ -174,6 +174,7 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zenlayer Account Engagement</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -289,20 +290,20 @@ HTML_TEMPLATE = """
                         <tr>
                             <td colspan="6" class="p-0">
                                 <!-- Main Row -->
-                                <div class="flex hover:bg-slate-50/50 transition-colors items-center">
-                                    <!-- Edit Button -->
+                                <div @click="toggleExpand(account.id)" class="flex hover:bg-slate-50/50 transition-colors items-center cursor-pointer">
+                                    <!-- Chevron Toggle -->
                                     <div class="w-10 flex items-center justify-center flex-shrink-0">
-                                        <a :href="'/qbr/account/' + account.id + '?edit=true'"
-                                           @click.stop
-                                           class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                                           title="Edit">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                        <div class="p-1 rounded transition-colors"
+                                             :class="expandedAccountId === account.id ? 'text-slate-700' : 'text-slate-400'">
+                                            <svg class="w-4 h-4 transition-transform duration-200"
+                                                 :class="expandedAccountId === account.id ? 'rotate-90' : ''"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                                             </svg>
-                                        </a>
+                                        </div>
                                     </div>
                                     <!-- Account Name (fixed width, truncated) -->
-                                    <div @click="goToAccount(account.id)" class="w-56 py-4 flex-shrink-0 cursor-pointer">
+                                    <div class="w-56 py-4 flex-shrink-0">
                                         <div class="flex items-center space-x-3">
                                             <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                  :class="{
@@ -314,12 +315,12 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Latest Update (flexible width, max 50 chars) -->
-                                    <div @click="goToAccount(account.id)" class="flex-1 px-6 py-4 cursor-pointer">
+                                    <div class="flex-1 px-6 py-4">
                                         <span class="text-sm" :class="account.latestUpdate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="truncate(account.latestUpdate, 50) || '-'"></span>
                                     </div>
                                     <!-- QBR Tracking -->
-                                    <div @click="goToAccount(account.id)" class="w-28 px-4 py-4 flex-shrink-0 cursor-pointer">
+                                    <div class="w-28 px-4 py-4 flex-shrink-0">
                                         <div class="flex">
                                             <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
                                                 <div class="w-6 flex justify-center">
@@ -330,12 +331,95 @@ HTML_TEMPLATE = """
                                         </div>
                                     </div>
                                     <!-- Next QBR -->
-                                    <div @click="goToAccount(account.id)" class="w-28 px-4 py-4 flex-shrink-0 cursor-pointer">
+                                    <div class="w-28 px-4 py-4 flex-shrink-0">
                                         <span class="text-sm" :class="account.nextQbrDate ? 'text-slate-600' : 'text-slate-400'"
                                               x-text="account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD'"></span>
                                     </div>
                                     <!-- Owner -->
-                                    <div @click="goToAccount(account.id)" class="w-28 px-3 py-4 flex-shrink-0 text-sm text-slate-600 cursor-pointer" x-text="account.owner"></div>
+                                    <div class="w-28 px-3 py-4 flex-shrink-0 text-sm text-slate-600" x-text="account.owner"></div>
+                                </div>
+                                <!-- Expandable Details Row -->
+                                <div x-show="expandedAccountId === account.id" x-collapse
+                                     class="border-t border-slate-100 bg-slate-50/50">
+                                    <div class="py-6 px-10">
+                                        <!-- Header with Edit Button -->
+                                        <div class="flex items-center justify-between mb-5">
+                                            <h3 class="text-sm font-bold text-slate-700" x-text="account.name + ' Details'"></h3>
+                                            <a :href="'/qbr/account/' + account.id + '?edit=true'"
+                                               @click.stop
+                                               class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                                </svg>
+                                                <span>Edit</span>
+                                            </a>
+                                        </div>
+                                        <!-- Content Grid -->
+                                        <div class="grid grid-cols-2 gap-6">
+                                            <!-- Left Column -->
+                                            <div class="space-y-5">
+                                                <!-- Latest Update -->
+                                                <div>
+                                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Latest Update</label>
+                                                    <p x-show="account.latestUpdate" class="text-sm text-slate-700" x-text="account.latestUpdate"></p>
+                                                    <p x-show="!account.latestUpdate" class="text-sm text-slate-400 italic">No update recorded.</p>
+                                                </div>
+                                                <!-- Key Learnings -->
+                                                <div>
+                                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Key Learnings</label>
+                                                    <template x-if="account.keyLearnings">
+                                                        <ul class="space-y-1">
+                                                            <template x-for="line in account.keyLearnings.split('\\n').filter(l => l.trim())">
+                                                                <li class="flex items-start space-x-2 text-sm text-slate-600">
+                                                                    <span class="text-slate-400 mt-0.5">•</span>
+                                                                    <span x-text="line.replace(/^[-•*]\\s*/, '')"></span>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </template>
+                                                    <p x-show="!account.keyLearnings" class="text-sm text-slate-400 italic">No learnings recorded.</p>
+                                                </div>
+                                            </div>
+                                            <!-- Right Column -->
+                                            <div class="space-y-5">
+                                                <!-- Next Steps -->
+                                                <div>
+                                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Steps</label>
+                                                    <template x-if="account.nextSteps">
+                                                        <ul class="space-y-1">
+                                                            <template x-for="line in account.nextSteps.split('\\n').filter(l => l.trim())">
+                                                                <li class="flex items-start space-x-2 text-sm text-slate-600">
+                                                                    <span class="text-slate-400 mt-0.5">•</span>
+                                                                    <span x-text="line.replace(/^[-•*]\\s*/, '')"></span>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </template>
+                                                    <p x-show="!account.nextSteps" class="text-sm text-slate-400 italic">No next steps defined.</p>
+                                                </div>
+                                                <!-- Contacts -->
+                                                <div>
+                                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Contacts</label>
+                                                    <div x-show="account.contacts && account.contacts.length > 0" class="space-y-2">
+                                                        <template x-for="(contact, idx) in account.contacts" :key="idx">
+                                                            <div class="flex items-center space-x-2">
+                                                                <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                                                                    <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                                                    </svg>
+                                                                </div>
+                                                                <div>
+                                                                    <p class="text-sm font-medium text-slate-700" x-text="contact.name"></p>
+                                                                    <a x-show="contact.email" :href="'mailto:' + contact.email" class="text-xs text-blue-600 hover:underline" x-text="contact.email" @click.stop></a>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <p x-show="!account.contacts || account.contacts.length === 0" class="text-sm text-slate-400 italic">No contacts added.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -387,6 +471,7 @@ HTML_TEMPLATE = """
                 sortBy: 'name',
                 sortDir: 'asc',
                 showModal: false,
+                expandedAccountId: null,
                 newAccount: { name: '', tier: 'Tier 2', owner: '' },
 
                 filteredAccounts() {
@@ -415,6 +500,9 @@ HTML_TEMPLATE = """
                         this.sortBy = column;
                         this.sortDir = 'asc';
                     }
+                },
+                toggleExpand(id) {
+                    this.expandedAccountId = this.expandedAccountId === id ? null : id;
                 },
                 truncate(text, length) {
                     if (!text) return '';
