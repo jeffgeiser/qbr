@@ -289,7 +289,14 @@ HTML_TEMPLATE = """
                             </div>
                         </th>
                         <th class="w-28 px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Next QBR</th>
-                        <th class="w-20 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Tier</th>
+                        <th @click="toggleSort('tier')" class="w-20 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
+                            <div class="flex items-center space-x-1">
+                                <span>Tier</span>
+                                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': sortBy === 'tier' && sortDir === 'desc', 'text-slate-600': sortBy === 'tier', 'text-slate-300': sortBy !== 'tier' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                </svg>
+                            </div>
+                        </th>
                         <th @click="toggleSort('owner')" class="w-28 px-3 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 cursor-pointer hover:text-slate-600 select-none">
                             <div class="flex items-center space-x-1">
                                 <span>Owner</span>
@@ -503,8 +510,17 @@ HTML_TEMPLATE = """
 
                     // Apply sorting
                     results.sort((a, b) => {
-                        let aVal = this.sortBy === 'name' ? a.name.toLowerCase() : (a.owner || '').toLowerCase();
-                        let bVal = this.sortBy === 'name' ? b.name.toLowerCase() : (b.owner || '').toLowerCase();
+                        let aVal, bVal;
+                        if (this.sortBy === 'name') {
+                            aVal = a.name.toLowerCase();
+                            bVal = b.name.toLowerCase();
+                        } else if (this.sortBy === 'tier') {
+                            aVal = a.tier;
+                            bVal = b.tier;
+                        } else {
+                            aVal = (a.owner || '').toLowerCase();
+                            bVal = (b.owner || '').toLowerCase();
+                        }
                         if (aVal < bVal) return this.sortDir === 'asc' ? -1 : 1;
                         if (aVal > bVal) return this.sortDir === 'asc' ? 1 : -1;
                         return 0;
