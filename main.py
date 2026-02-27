@@ -1,6 +1,6 @@
 
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import List, Optional, Dict
 from contextlib import asynccontextmanager
@@ -353,77 +353,43 @@ async def delete_account(account_id: str):
 # --- Routes: Briefing Generator ---
 
 @app.get("/briefings", response_class=HTMLResponse)
-async def briefings_page(account_id: Optional[str] = None, type: Optional[str] = None):
-    accounts = get_all_accounts()
-
-    active = "briefings"
-    if type == "internal":
-        active = "briefing_internal"
-    elif type == "customer":
-        active = "briefing_customer"
-
+async def briefings_page(type: Optional[str] = None):
     return render_template(
         "briefings.html",
-        accounts=accounts,
-        preselected_account_id=account_id or "",
         preselected_type=type or "",
-        active_nav=active,
+        active_nav="briefings",
     )
 
 
 @app.post("/api/briefings/generate")
 async def generate_briefing_endpoint(request: Request):
-    """API endpoint to generate a briefing. Returns JSON with result_id."""
-    from datetime import datetime
-
+    """Streaming API endpoint. Claude orchestrates Salesforce tool calls and generates the briefing."""
     body = await request.json()
-    account_id = body.get("account_id")
     briefing_type = body.get("briefing_type")
-    time_range_days = body.get("time_range_days", 90)
+    user_message = body.get("user_message", "")
 
-    if not account_id or not briefing_type:
-        return JSONResponse({"detail": "account_id and briefing_type are required"}, status_code=400)
-
-    if briefing_type not in ("internal", "customer"):
+    if not briefing_type or briefing_type not in ("internal", "customer"):
         return JSONResponse({"detail": "briefing_type must be 'internal' or 'customer'"}, status_code=400)
 
-    account = get_account_by_id(account_id)
-    if not account:
-        return JSONResponse({"detail": "Account not found"}, status_code=404)
+    if not user_message.strip():
+        return JSONResponse({"detail": "user_message is required"}, status_code=400)
 
-    # Try to fetch Salesforce data
-    salesforce_data = {}
-    try:
-        from services.salesforce_mcp import salesforce_client
-        if salesforce_client.is_connected:
-            salesforce_data = await salesforce_client.fetch_all_briefing_data(
-                account["name"], time_range_days
-            )
-            logger.info(f"Fetched Salesforce data for {account['name']}")
-        else:
-            logger.info("Salesforce not connected, generating briefing with tracker data only")
-    except Exception as e:
-        logger.warning(f"Failed to fetch Salesforce data: {e}")
+    from services.briefing_generator import generate_briefing_stream
 
-    # Generate the briefing via Claude AI
-    try:
-        from services.briefing_generator import generate_briefing
-        briefing_result = await generate_briefing(
-            briefing_type=briefing_type,
-            account_name=account["name"],
-            salesforce_data=salesforce_data,
-            tracker_data=account,
-            time_range_days=time_range_days,
-        )
-    except Exception as e:
-        logger.error(f"Briefing generation failed: {e}")
-        return JSONResponse({"detail": f"Briefing generation failed: {str(e)}"}, status_code=500)
+    async def event_stream():
+        async for event in generate_briefing_stream(briefing_type, user_message):
+            yield event
+        yield "data: [DONE]\n\n"
 
-    # Save result
-    result_id = str(uuid.uuid4())
-    save_briefing_result(result_id, account_id, briefing_type, time_range_days, briefing_result)
-
-    return JSONResponse({"result_id": result_id, "success": True})
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/briefings/{account_id}/{briefing_type}", response_class=HTMLResponse)
