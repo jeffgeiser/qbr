@@ -1,348 +1,593 @@
-# QBR Site Redesign: Unified Dashboard + Executive Summary Generator
+# QBR Site Redesign: Unified Platform with Dual Briefing Generator
 
 ## Current State
 
-The app is a **Zenlayer Account Engagement Tracker** — a single-page dashboard listing accounts in a table with expandable rows, plus an account detail/edit page. It's built on FastAPI + Alpine.js + Tailwind CSS with SQLite storage.
-
-**Current navigation is flat:** Dashboard → Account Detail → Edit Mode. That's it.
-
----
-
-## The Design Challenge
-
-We need to add a fundamentally different capability — an **AI-powered Executive Summary Generator** that pulls data from Salesforce (and possibly M365), synthesizes it, and produces a PDF — while keeping the existing account tracking dashboard intact. These are two related but distinct workflows:
-
-1. **Track & Manage** (existing) — ongoing account hygiene, QBR scheduling, health monitoring
-2. **Research & Generate** (new) — on-demand deep-dive into an account for meeting prep
+**Zenlayer Account Engagement Tracker** — FastAPI + Alpine.js + Tailwind CSS + SQLite.
+Single workflow: Dashboard table → Account detail → Edit. Flat top-nav, no sidebar.
 
 ---
 
-## Proposed Approach: Unified App with Contextual Navigation
+## What's Changing
 
-Rather than bolting on a separate page, we unify both workflows under a single cohesive experience. The key insight: **the account is the anchor**. Both workflows start from the same place — an account — and diverge from there.
+1. **Collapsible left sidebar** replaces the flat top-nav as the primary navigation
+2. **Briefing Generator** — a new first-class feature that produces two distinct document types from Salesforce data:
+   - **Internal Executive Health Brief** — Candid, risk-focused, for internal leadership
+   - **Customer-Facing QBR** — Professional, proactive, for presenting to the customer
+3. **Salesforce MCP** is the data source: cases, contacts, pipeline/opportunities, deals won/lost, solution details
+4. **PDF export** for both briefing types
 
-### Option A: Account-Centric Hub (Recommended)
+---
 
-The account detail page becomes a **hub with tabs/sections**, and "Generate Summary" becomes a first-class action you can take on any account.
+## Navigation: Collapsible Left Sidebar
 
+The current top navbar (logo + search + new account button) transforms into a sidebar-driven layout. The sidebar collapses to icons-only for maximum content space.
+
+### Expanded Sidebar
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  🔵 zenlayer                                    [Search]  [+ New]  │
-│     ENGAGEMENT PLAN          Portfolio | Summary Generator          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─ Portfolio View (current dashboard, unchanged) ──────────────┐  │
-│  │                                                               │  │
-│  │  Key Account Engagement                                       │  │
-│  │  Quarterly QBR tracking dashboard                             │  │
-│  │                                                               │  │
-│  │  [All] [Tier 1] [Tier 2] [Tier 3]    Health: [●] [●] [●]    │  │
-│  │                                                               │  │
-│  │  ┌──────────────────────────────────────────────────────────┐ │  │
-│  │  │ Account    │ Update  │ QBR Q1-Q4  │ Next QBR │ Tier │ ⚡│ │  │
-│  │  ├──────────────────────────────────────────────────────────┤ │  │
-│  │  │ ● Zoom     │ ...     │ ○ ○ ○ ○    │ Mar 15   │ T1   │ ▶│ │  │
-│  │  │ ● SpaceX   │ ...     │ ● ○ ○ ○    │ Apr 02   │ T1   │ ▶│ │  │
-│  │  └──────────────────────────────────────────────────────────┘ │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-
-  ⚡ = New "Generate Summary" quick-action button per row
-  ▶  = Existing expand/detail behavior
-```
-
-### The Summary Generator Page
-
-Accessible from:
-- The **⚡ button** on any account row (pre-selects that account)
-- The **"Summary Generator"** nav tab (starts with account selector)
-- The **account detail page** (new "Generate Summary" button)
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  🔵 zenlayer                                    [Search]  [+ New]  │
-│     ENGAGEMENT PLAN          Portfolio | Summary Generator          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Executive Summary Generator                                        │
-│  Build a comprehensive account brief for QBRs and meetings         │
-│                                                                     │
-│  ┌─── Configuration ───────────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │  Account    [  SpaceX                              ▾ ]      │   │
-│  │                                                              │   │
-│  │  Time Range [  Last 90 days                        ▾ ]      │   │
-│  │                                                              │   │
-│  │  Data Sources                                                │   │
-│  │  ☑ Salesforce — Opportunities, Cases, Activities             │   │
-│  │  ☑ M365 — Emails, Calendar, Teams                            │   │
-│  │  ☑ QBR Tracker — Internal notes, health, contacts            │   │
-│  │                                                              │   │
-│  │  Focus Areas (optional)                                      │   │
-│  │  ☐ Revenue & Pipeline    ☐ Support & Escalations             │   │
-│  │  ☐ Engagement Cadence    ☐ Risks & Concerns                  │   │
-│  │  ☐ Key Contacts Map      ☐ Product Usage                     │   │
-│  │                                                              │   │
-│  │               [ ⚡ Generate Executive Summary ]               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────┬──────────────────────────────────────────────────┐
+│                  │                                                  │
+│  🔵 zenlayer     │                                                  │
+│     Engagement   │           [main content area]                    │
+│                  │                                                  │
+│  ─────────────── │                                                  │
+│                  │                                                  │
+│  📊 Portfolio    │                                                  │
+│                  │                                                  │
+│  📄 Briefings    │                                                  │
+│     ├ Internal   │                                                  │
+│     └ Customer   │                                                  │
+│                  │                                                  │
+│  ─────────────── │                                                  │
+│                  │                                                  │
+│                  │                                                  │
+│                  │                                                  │
+│                  │                                                  │
+│                  │                                                  │
+│                  │                                                  │
+│  « Collapse      │                                                  │
+│                  │                                                  │
+└──────────────────┴──────────────────────────────────────────────────┘
+  ~200px wide                    remaining width
 ```
 
-### Summary Results View
+### Collapsed Sidebar
+```
+┌──────┬──────────────────────────────────────────────────────────────┐
+│      │                                                              │
+│  🔵  │                                                              │
+│      │              [main content area — wider]                     │
+│ ──── │                                                              │
+│      │                                                              │
+│  📊  │                                                              │
+│      │                                                              │
+│  📄  │                                                              │
+│      │                                                              │
+│      │                                                              │
+│      │                                                              │
+│      │                                                              │
+│      │                                                              │
+│  »   │                                                              │
+│      │                                                              │
+└──────┴──────────────────────────────────────────────────────────────┘
+ ~56px                       remaining width
+```
 
-After generation, a rich results page appears below the config panel (or replaces it):
+### Sidebar Navigation Items
+
+| Icon | Label | Destination |
+|------|-------|-------------|
+| 📊 | Portfolio | Existing dashboard (account table, filters, stats) |
+| 📄 | Briefings | Briefing generator with sub-items: |
+| | ├ Internal Brief | Internal Executive Health Brief generator |
+| | └ Customer QBR | Customer-Facing QBR generator |
+
+The **Search bar** and **+ New Account** button move into the main content area header (contextual to the Portfolio view), keeping the sidebar clean and navigation-focused.
+
+---
+
+## Full Page Layouts
+
+### 1. Portfolio View (Dashboard — Enhanced)
+
+The existing dashboard, now framed within the sidebar layout. Search and New Account live in the content header.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  🔵 zenlayer                                    [Search]  [+ New]  │
-│     ENGAGEMENT PLAN          Portfolio | Summary Generator          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Executive Summary: SpaceX               [ 📄 Export PDF ] [Edit]  │
-│  Generated Feb 27, 2026 · Last 90 days                              │
-│                                                                     │
-│  ┌─── Account Snapshot ────────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │  SpaceX                              Tier 1 │ ● Healthy     │   │
-│  │  Owner: Josh Lipold                                          │   │
-│  │  ARR: $2.4M  │  Open Opps: 3  │  Open Cases: 1              │   │
-│  │  Last QBR: Dec 2025  │  Next QBR: Mar 2026                   │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─── Executive Summary ───────────────────────────────────────┐   │
-│  │                                                              │   │
-│  │  SpaceX continues to be a high-value strategic account       │   │
-│  │  with strong engagement momentum. Revenue grew 18% QoQ       │   │
-│  │  driven by expansion into APAC edge nodes. The Q4 QBR        │   │
-│  │  surfaced interest in additional DDoS protection services.    │   │
-│  │  One open support case (P2) around latency in LAX POP        │   │
-│  │  is being actively worked. Key risk: champion Jonathan        │   │
-│  │  Harrison may be transitioning roles...                       │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─ Recent Activity ──────┐  ┌─ Pipeline & Revenue ───────────┐   │
-│  │                         │  │                                 │   │
-│  │  📧 14 emails (90d)    │  │  ┌─────────────────────────┐   │   │
-│  │  📞  6 calls           │  │  │  $2.4M ARR              │   │   │
-│  │  📅  3 meetings        │  │  │  ████████████░░  87%    │   │   │
-│  │  📋  2 cases           │  │  │  renewal confidence     │   │   │
-│  │                         │  │  └─────────────────────────┘   │   │
-│  │  Last Contact:          │  │                                 │   │
-│  │  Feb 22 — Email from    │  │  Open Opportunities:            │   │
-│  │  J. Harrison re: APAC   │  │  • DDoS Pro ($180K) - Stage 3  │   │
-│  │  expansion timeline     │  │  • Edge Compute ($95K) - S2    │   │
-│  │                         │  │  • Bandwidth Upgrade ($40K) S4 │   │
-│  └─────────────────────────┘  └─────────────────────────────────┘   │
-│                                                                     │
-│  ┌─ Key Contacts ─────────┐  ┌─ Risks & Action Items ────────┐   │
-│  │                         │  │                                 │   │
-│  │  Jonathan Harrison      │  │  ⚠ Champion may be changing    │   │
-│  │  VP Infrastructure      │  │    roles — confirm status       │   │
-│  │  Last: Feb 22 (email)   │  │                                 │   │
-│  │  Engagement: ●●●●○      │  │  ⚠ P2 case open > 14 days     │   │
-│  │                         │  │    Escalate to engineering lead │   │
-│  │  Sarah Chen             │  │                                 │   │
-│  │  Dir. Network Ops       │  │  ✅ Schedule in-person QBR     │   │
-│  │  Last: Feb 10 (call)    │  │     in Seattle (March)          │   │
-│  │  Engagement: ●●●○○      │  │                                 │   │
-│  └─────────────────────────┘  └─────────────────────────────────┘   │
-│                                                                     │
-│  ┌─ Talking Points for Next Meeting ───────────────────────────┐   │
-│  │                                                              │   │
-│  │  1. Congratulate on APAC expansion — position Zenlayer's     │   │
-│  │     regional edge presence as a natural fit                   │   │
-│  │  2. Address LAX POP latency issue — bring resolution update  │   │
-│  │  3. Introduce DDoS Pro opportunity — align with their        │   │
-│  │     growing security posture concerns                         │   │
-│  │  4. Confirm Jonathan's role/succession for relationship      │   │
-│  │     continuity planning                                       │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│         [ ⚡ Regenerate ]   [ 📄 Export PDF ]   [ 💾 Save ]        │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────┬──────────────────────────────────────────────────────┐
+│                  │                                                      │
+│  🔵 zenlayer     │  Key Account Engagement         [Search] [+ New]    │
+│     Engagement   │  Quarterly QBR tracking dashboard                    │
+│                  │                                                      │
+│  ─────────────── │  [All] [Tier 1] [Tier 2] [Tier 3]  Health: ● ● ●   │
+│                  │                                                      │
+│  📊 Portfolio  ← │  ┌────────────────────────────────────────────────┐  │
+│                  │  │ Account  │ Update │ QBR    │ Next  │ Tier│Owner│  │
+│  📄 Briefings    │  ├────────────────────────────────────────────────┤  │
+│     ├ Internal   │  │ ● Zoom   │ ...    │ ○○○○   │ Mar15 │ T1  │ CM │  │
+│     └ Customer   │  │ ● SpaceX │ ...    │ ●○○○   │ Apr02 │ T1  │ JL │  │
+│                  │  │ ● Cisco  │ Will.. │ ○○○○   │ --    │ T1  │ JL │  │
+│                  │  │ ● Zscaler│ ...    │ ○○○○   │ --    │ T1  │ CM │  │
+│                  │  │   ...    │        │        │       │     │    │  │
+│                  │  └────────────────────────────────────────────────┘  │
+│                  │                                                      │
+│  « Collapse      │                                                      │
+│                  │                                                      │
+└──────────────────┴──────────────────────────────────────────────────────┘
 ```
+
+---
+
+### 2. Briefing Generator — Landing / Account Selection
+
+When the user clicks "Briefings" (or either sub-item) they land on the briefing generator. The first step is always: **pick an account, pick a briefing type**.
+
+```
+┌──────────────────┬──────────────────────────────────────────────────────┐
+│                  │                                                      │
+│  🔵 zenlayer     │  Account Briefing Generator                          │
+│     Engagement   │  Generate executive briefings powered by Salesforce  │
+│                  │                                                      │
+│  ─────────────── │  ┌────────────────────────────────────────────────┐  │
+│                  │  │                                                │  │
+│  📊 Portfolio    │  │  Select Account                                │  │
+│                  │  │  [ Zoom                                    ▾ ] │  │
+│  📄 Briefings  ← │  │                                                │  │
+│     ├ Internal   │  │  Time Range                                    │  │
+│     └ Customer   │  │  [ Last 90 days                            ▾ ] │  │
+│                  │  │                                                │  │
+│                  │  └────────────────────────────────────────────────┘  │
+│                  │                                                      │
+│                  │  Choose Briefing Type                                 │
+│                  │                                                      │
+│                  │  ┌──────────────────────┐ ┌──────────────────────┐   │
+│                  │  │                      │ │                      │   │
+│                  │  │  🔒 INTERNAL         │ │  🤝 CUSTOMER         │   │
+│                  │  │  Executive Health    │ │  Facing QBR          │   │
+│                  │  │  Brief               │ │                      │   │
+│                  │  │                      │ │                      │   │
+│                  │  │  Candid risk         │ │  Professional        │   │
+│                  │  │  assessment for      │ │  partnership review  │   │
+│                  │  │  internal leadership │ │  for the customer    │   │
+│                  │  │                      │ │                      │   │
+│                  │  │  • At-risk scorecard │ │  • Partnership       │   │
+│                  │  │  • Friction points   │ │    summary           │   │
+│                  │  │  • Revenue at risk   │ │  • Performance       │   │
+│                  │  │  • Internal red flags│ │    highlights        │   │
+│                  │  │  • Action directives │ │  • Improvement plan  │   │
+│                  │  │                      │ │  • Growth roadmap    │   │
+│                  │  │  [ Generate Brief ]  │ │  • Joint action plan │   │
+│                  │  │                      │ │                      │   │
+│                  │  └──────────────────────┘ │  [ Generate QBR ]    │   │
+│                  │                           │                      │   │
+│  « Collapse      │                           └──────────────────────┘   │
+│                  │                                                      │
+└──────────────────┴──────────────────────────────────────────────────────┘
+```
+
+The two cards make the choice obvious and visual. Each card lists exactly what sections will be generated, setting expectations before the user clicks.
+
+---
+
+### 3. Internal Executive Health Brief — Results View
+
+After generating, the user sees the candid, no-fluff internal assessment.
+
+```
+┌──────────────────┬──────────────────────────────────────────────────────┐
+│                  │                                                      │
+│  🔵 zenlayer     │  Internal Executive Health Brief     [PDF] [Edit]   │
+│     Engagement   │  Zoom · Generated Feb 27, 2026 · Last 90 days       │
+│                  │  ← Back to Briefings                                 │
+│  ─────────────── │                                                      │
+│                  │  ┌─ At-Risk Scorecard ──────────────────────────┐    │
+│  📊 Portfolio    │  │                                              │    │
+│                  │  │  BUSINESS OUTLOOK        ████░  4/5          │    │
+│  📄 Briefings    │  │  SUPPORT HEALTH          ██░░░  2/5  ⚠      │    │
+│   ▸ Internal   ← │  │  ENGAGEMENT CADENCE      ███░░  3/5          │    │
+│     └ Customer   │  │  PIPELINE MOMENTUM       ████░  4/5          │    │
+│                  │  │  RELATIONSHIP DEPTH       ███░░  3/5          │    │
+│                  │  │                                              │    │
+│                  │  │  Overall Health: CAUTION — Support risk is   │    │
+│                  │  │  undermining an otherwise strong account     │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Friction Points & Escalations ─────────────┐    │
+│                  │  │                                              │    │
+│                  │  │  ⚠ Post-Maintenance Link-Down Pattern        │    │
+│                  │  │    5 instances identified:                    │    │
+│                  │  │    • Case #01734201 — MEX2/NYC1 down 4hrs   │    │
+│                  │  │    • Case #01734387 — LAX POP post-maint    │    │
+│                  │  │    • Case #01734512 — SIN1 link flap        │    │
+│                  │  │    • Case #01734601 — FRA2 circuit drop     │    │
+│                  │  │    • Case #01734733 — NYC1 recurring        │    │
+│                  │  │                                              │    │
+│                  │  │  🔴 Direct Customer Outburst                 │    │
+│                  │  │    Joel Burt: "WHY? STILL DOWN" on case      │    │
+│                  │  │    #01734733 — indicates eroding patience    │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Revenue Protection ─────┐ ┌─ Internal Red ────┐ │
+│                  │  │                           │ │  Flags             │ │
+│                  │  │  Pipeline at Risk: $220K+ │ │                    │ │
+│                  │  │                           │ │  ⚠ Case #01734733 │ │
+│                  │  │  • KSA IPT Expansion      │ │    stalled 12+    │ │
+│                  │  │    $160K — at risk if      │ │    days — no      │ │
+│                  │  │    reliability unsolved    │ │    escalation      │ │
+│                  │  │                           │ │    workflow         │ │
+│                  │  │  • DDoS Pro Add-on        │ │                    │ │
+│                  │  │    $60K — champion         │ │  ⚠ Salesforce     │ │
+│                  │  │    losing confidence       │ │    close dates     │ │
+│                  │  │                           │ │    stale on 3      │ │
+│                  │  │  Deals Won (period):      │ │    opportunities   │ │
+│                  │  │  • APAC Edge ($95K) ✓     │ │                    │ │
+│                  │  │                           │ │  ⚠ No standardized │ │
+│                  │  │  Deals Lost: None         │ │    P1 escalation   │ │
+│                  │  │                           │ │    protocol exists  │ │
+│                  │  └───────────────────────────┘ └────────────────────┘ │
+│                  │                                                      │
+│                  │  ┌─ Internal Action Directives ────────────────┐    │
+│                  │  │                                              │    │
+│                  │  │  1. ⬜ Audit maintenance verification        │    │
+│                  │  │        process for all Zoom circuits         │    │
+│                  │  │  2. ⬜ Establish dedicated P1 escalation     │    │
+│                  │  │        workflow for Tier 1 accounts          │    │
+│                  │  │  3. ⬜ Unstall Case #01734733 — assign       │    │
+│                  │  │        senior engineer, update customer      │    │
+│                  │  │  4. ⬜ Refresh stale Salesforce close dates  │    │
+│                  │  │        on KSA IPT, DDoS Pro, Bandwidth opps │    │
+│                  │  │  5. ⬜ Schedule executive touchpoint with    │    │
+│                  │  │        Zoom NOC leadership (damage control)  │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │     [ Regenerate ]   [ Export PDF ]   [ Save ]       │
+│                  │                                                      │
+│  « Collapse      │                                                      │
+│                  │                                                      │
+└──────────────────┴──────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4. Customer-Facing QBR — Results View
+
+The same underlying data, reframed as a professional, forward-looking partnership review.
+
+```
+┌──────────────────┬──────────────────────────────────────────────────────┐
+│                  │                                                      │
+│  🔵 zenlayer     │  Quarterly Business Review             [PDF] [Edit] │
+│     Engagement   │  Zoom · Q1 2026 · Prepared Feb 27, 2026             │
+│                  │  ← Back to Briefings                                 │
+│  ─────────────── │                                                      │
+│                  │  ┌─ Executive Summary of Partnership ──────────┐    │
+│  📊 Portfolio    │  │                                              │    │
+│                  │  │  Zoom is a strategically important account   │    │
+│  📄 Briefings    │  │  with a global service portfolio spanning    │    │
+│     ├ Internal   │  │  North America, Europe, Asia, and the       │    │
+│   ▸ Customer   ← │  │  Middle East. This quarter has seen         │    │
+│                  │  │  continued expansion into APAC markets and   │    │
+│                  │  │  proactive investment in network resilience. │    │
+│                  │  │  Zenlayer remains committed to delivering    │    │
+│                  │  │  the performance and reliability that Zoom's │    │
+│                  │  │  global operations demand.                   │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Operational Performance ───────────────────┐    │
+│                  │  │                                              │    │
+│                  │  │  Cases Handled This Period: 35               │    │
+│                  │  │                                              │    │
+│                  │  │  Resolution Highlights:                      │    │
+│                  │  │  ✦ 12-minute resolution — LAX routing fix    │    │
+│                  │  │  ✦ 4-hour turnaround — SIN1 failover        │    │
+│                  │  │  ✦ 92% of cases resolved within SLA         │    │
+│                  │  │                                              │    │
+│                  │  │  Average Response Time: 18 minutes           │    │
+│                  │  │  Customer Satisfaction: Excellent / 4.2★     │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Service Improvement Plan ──────────────────┐    │
+│                  │  │  "We Hear You"                               │    │
+│                  │  │                                              │    │
+│                  │  │  Circuit Optimization                        │    │
+│                  │  │  Formal RCA and carrier-level review for     │    │
+│                  │  │  MEX2/NYC1 route to ensure future uptime.    │    │
+│                  │  │  Target: 99.99% availability by Q2.         │    │
+│                  │  │                                              │    │
+│                  │  │  Named Account Support Protocol              │    │
+│                  │  │  • Dedicated case queue for Zoom             │    │
+│                  │  │  • Weekly case reviews with your team        │    │
+│                  │  │  • Named senior engineer assignment          │    │
+│                  │  │  • Priority P1 escalation path               │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Strategic Roadmap & Expansion ─────────────┐    │
+│                  │  │                                              │    │
+│                  │  │  Active Growth Initiatives:                  │    │
+│                  │  │  • Global SDN — Phase 2 rollout in progress  │    │
+│                  │  │  • DDoS Protection — Enhanced edge defense   │    │
+│                  │  │  • Colocation — New builds in KSA region     │    │
+│                  │  │                                              │    │
+│                  │  │  Multi-Region Expansion:                     │    │
+│                  │  │  ✓ APAC edge nodes — live                    │    │
+│                  │  │  ◐ Middle East (KSA) — in progress           │    │
+│                  │  │  ○ LATAM expansion — planning phase          │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │  ┌─ Joint Action Plan ─────────────────────────┐    │
+│                  │  │                                              │    │
+│                  │  │  1. Executive touchpoint: Zenlayer VP Ops    │    │
+│                  │  │     ↔ Zoom NOC Leadership (March)            │    │
+│                  │  │  2. MEX2/NYC1 RCA delivery — target Mar 15  │    │
+│                  │  │  3. Named support protocol kickoff — Mar 1   │    │
+│                  │  │  4. KSA IPT expansion design review — Mar 20│    │
+│                  │  │  5. Q2 QBR scheduled — June 2026             │    │
+│                  │  │                                              │    │
+│                  │  └──────────────────────────────────────────────┘    │
+│                  │                                                      │
+│                  │     [ Regenerate ]   [ Export PDF ]   [ Save ]       │
+│                  │                                                      │
+│  « Collapse      │                                                      │
+│                  │                                                      │
+└──────────────────┴──────────────────────────────────────────────────────┘
+```
+
+---
+
+## The Two Briefing Types — Side by Side
+
+### Internal Executive Health Brief
+
+| Attribute | Detail |
+|-----------|--------|
+| **Goal** | Risk mitigation, internal accountability, resource allocation |
+| **Tone** | Candid, urgent, no-fluff |
+| **Audience** | Internal leadership, account team |
+| **PDF Header** | "CONFIDENTIAL — Internal Use Only" |
+
+**Sections:**
+1. **At-Risk Scorecard** — 5-dimension radar: Business Outlook, Support Health, Engagement Cadence, Pipeline Momentum, Relationship Depth. Each scored 1-5 with visual bar.
+2. **Friction Points & Escalations** — Raw case data surfacing patterns (e.g., post-maintenance link-down pattern with 5 specific instances). Includes direct customer quotes/outbursts.
+3. **Revenue Protection** — Pipeline dollars tied to stability. Which deals are at risk and why.
+4. **Internal Red Flags** — Process gaps: stalled cases, missing escalation workflows, stale Salesforce data.
+5. **Internal Action Directives** — Concrete to-do list with checkboxes. Immediate, assignable, accountable.
+
+### Customer-Facing QBR
+
+| Attribute | Detail |
+|-----------|--------|
+| **Goal** | Demonstrate transparency, prove ROI, roadmap the future |
+| **Tone** | Professional, proactive, committed to excellence |
+| **Audience** | Customer stakeholders, decision makers |
+| **PDF Header** | "Quarterly Business Review — Prepared for [Customer]" |
+
+**Sections:**
+1. **Executive Summary of Partnership** — High-level narrative acknowledging the customer as strategically important. Global portfolio scope.
+2. **Operational Performance Transparency** — Volume metrics (cases handled), success highlights (best resolution times), SLA adherence. Honest but framed positively.
+3. **Service Improvement Plan ("We Hear You")** — Reframes problems as improvement initiatives. "Circuit Optimization" not "circuit failures." Proposes Named Account Support Protocol.
+4. **Strategic Roadmap & Expansion** — Aligns Zenlayer growth with customer expansion. SDN, DDoS, Colocation, multi-region.
+5. **Joint Action Plan** — Collaborative next steps with dates and owners. Executive touchpoints, RCA deliveries, protocol kickoffs.
+
+### Comparison Matrix
+
+| Feature | Internal Brief | Customer QBR |
+|---------|---------------|--------------|
+| **Primary Focus** | Where are we failing? | How are we improving? |
+| **Case Detail** | Stalled & poor resolutions | Exceptional wins & remediation |
+| **Financials** | Pipeline at risk, stale dates | Expansion opportunities & roadmap |
+| **Tone** | Critical & direct | Consultative & collaborative |
+| **Contacts** | Internal owners & gaps | Joint stakeholder map |
+| **Actions** | Internal directives (fix it) | Joint action plan (partner on it) |
+
+---
+
+## Salesforce MCP Data Requirements
+
+All data comes from Salesforce MCP queries. No M365 for now.
+
+| Salesforce Object | Used For | Internal Brief | Customer QBR |
+|-------------------|----------|:-:|:-:|
+| **Cases** | Support volume, P1s, resolution times, escalations, customer comments | ✓ | ✓ |
+| **Contacts** | Key stakeholders, engagement mapping | ✓ | ✓ |
+| **Opportunities** (open) | Pipeline, deal stages, amounts, close dates | ✓ | ✓ |
+| **Opportunities** (won) | Recent wins, revenue validation | ✓ | ✓ |
+| **Opportunities** (lost) | Churn signals, competitive pressure | ✓ | — |
+| **Opportunity Products / Solutions** | What's deployed, expansion areas | ✓ | ✓ |
+| **Activities / Tasks** | Engagement cadence, last touchpoints | ✓ | — |
+| **Account** | Tier, owner, metadata | ✓ | ✓ |
 
 ---
 
 ## Navigation Architecture
 
-### Current
-```
-Nav: [Logo + Title]                              [Search] [+ New]
+### Routes
 
-Routes:
-  /qbr/                    → Dashboard
-  /qbr/account/{id}        → Account Detail
-  /qbr/account/{id}?edit   → Account Edit
 ```
-
-### Proposed
-```
-Nav: [Logo + Title]    [Portfolio] [Summary Generator]   [Search] [+ New]
-
-Routes:
-  /qbr/                    → Portfolio Dashboard (existing, enhanced)
-  /qbr/account/{id}        → Account Detail (existing + "Generate Summary" CTA)
-  /qbr/summary             → Summary Generator (account selector)
-  /qbr/summary/{id}        → Summary Generator (pre-selected account)
-  /qbr/summary/{id}/result → Generated Summary View
+/qbr/                           → Portfolio Dashboard
+/qbr/account/{id}               → Account Detail
+/qbr/account/{id}?edit=true     → Account Edit
+/qbr/briefings                  → Briefing Generator (account + type selection)
+/qbr/briefings/{id}/internal    → Generate / View Internal Health Brief
+/qbr/briefings/{id}/customer    → Generate / View Customer-Facing QBR
 ```
 
-The top nav gets **two persistent tabs**: "Portfolio" (the existing dashboard) and "Summary Generator" (the new feature). Clean, simple, discoverable.
+### Sidebar State
+
+The sidebar remembers its collapsed/expanded state via localStorage. On mobile, it becomes a hamburger overlay.
+
+```
+Sidebar Items:
+  📊  Portfolio          → /qbr/
+  📄  Briefings          → /qbr/briefings
+       ├ Internal Brief  → /qbr/briefings (pre-selects "Internal")
+       └ Customer QBR    → /qbr/briefings (pre-selects "Customer")
+```
+
+### Entry Points to Generate a Briefing
+
+1. **Sidebar → Briefings** — Full selection flow (pick account, pick type)
+2. **Sidebar → Internal / Customer** — Pre-selects type, just pick account
+3. **Account Detail Page** — New "Generate Briefing" button → pre-selects account
+4. **Dashboard row** — Quick-action icon on hover → pre-selects account
 
 ---
 
-## Design Principles
+## PDF Export Designs
 
-1. **Same visual language** — Both features share the same card-based, Tailwind-styled, Inter-font aesthetic. No jarring transitions.
-
-2. **Account as the anchor** — Everything ties back to an account. The summary generator isn't a separate world; it's a tool you use *on* an account.
-
-3. **Progressive disclosure** — The summary generator starts simple (pick account, click generate) and reveals rich detail. Don't overwhelm upfront.
-
-4. **Live data, static output** — The generator pulls live data from Salesforce/M365, but the resulting summary is a snapshot you can export, save, and share.
-
-5. **Edit-friendly** — The generated summary should be editable before export. AI gets you 80% there; the account manager fine-tunes the last 20%.
-
----
-
-## Quick-Action Integration on Dashboard
-
-Add a subtle but powerful shortcut directly on the dashboard table rows:
+### Internal Brief PDF
 
 ```
-Before:
-┌──────────┬──────────┬────────┬──────────┬──────┬───────┐
-│ Account  │ Update   │ QBR    │ Next QBR │ Tier │ Owner │
-├──────────┼──────────┼────────┼──────────┼──────┼───────┤
-│ ● SpaceX │ Geiser...│ ● ○ ○ ○│ Mar 15   │ T1   │ Josh  │
-└──────────┴──────────┴────────┴──────────┴──────┴───────┘
-
-After:
-┌──────────┬──────────┬────────┬──────────┬──────┬───────┬────────┐
-│ Account  │ Update   │ QBR    │ Next QBR │ Tier │ Owner │        │
-├──────────┼──────────┼────────┼──────────┼──────┼───────┼────────┤
-│ ● SpaceX │ Geiser...│ ● ○ ○ ○│ Mar 15   │ T1   │ Josh  │ [⚡📄] │
-└──────────┴──────────┴────────┴──────────┴──────┴───────┴────────┘
-                                                           ↑
-                                                  Quick-generate button
-                                                  (appears on hover)
+┌─────────────────────────────────────────┐
+│                                         │
+│  ZENLAYER — CONFIDENTIAL                │
+│  Internal Executive Health Brief        │
+│                                         │
+│  Account: Zoom                          │
+│  Period: Dec 2025 — Feb 2026 (90 days)  │
+│  Prepared: February 27, 2026            │
+│  Owner: Carlos Morell                   │
+│                                         │
+│  ═══════════════════════════════════════ │
+│                                         │
+│  AT-RISK SCORECARD                      │
+│  Business Outlook     ████░  4/5        │
+│  Support Health       ██░░░  2/5  ⚠     │
+│  Engagement Cadence   ███░░  3/5        │
+│  Pipeline Momentum    ████░  4/5        │
+│  Relationship Depth   ███░░  3/5        │
+│                                         │
+│  FRICTION POINTS & ESCALATIONS          │
+│  [Detailed case patterns + quotes]      │
+│                                         │
+│  REVENUE PROTECTION                     │
+│  Pipeline at risk: $220K+               │
+│  [Deal-by-deal breakdown]               │
+│                                         │
+│  INTERNAL RED FLAGS                     │
+│  [Process gaps and stalled items]       │
+│                                         │
+│  ACTION DIRECTIVES                      │
+│  ☐ [Numbered, assignable action items]  │
+│                                         │
+│  ─────────────────────────────────────  │
+│  Confidential — Zenlayer Internal Only  │
+│                                         │
+└─────────────────────────────────────────┘
 ```
 
----
-
-## PDF Export Design
-
-The PDF should be a polished, boardroom-ready document:
+### Customer QBR PDF
 
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
 │  ZENLAYER                               │
-│  Executive Account Summary              │
+│  Quarterly Business Review              │
+│  Prepared for Zoom                      │
 │                                         │
-│  SpaceX                                 │
-│  Prepared: February 27, 2026            │
-│  Account Owner: Josh Lipold             │
+│  Q1 2026                                │
+│  February 27, 2026                      │
+│  Account Team: Carlos Morell            │
 │                                         │
-│  ─────────────────────────────────────  │
+│  ═══════════════════════════════════════ │
 │                                         │
 │  EXECUTIVE SUMMARY                      │
-│  [AI-generated narrative paragraph]     │
+│  [Partnership narrative]                │
 │                                         │
-│  ACCOUNT OVERVIEW                       │
-│  Tier: 1 — Strategic                    │
-│  Health: Healthy                        │
-│  ARR: $2.4M                             │
-│  Renewal: Aug 2026                      │
+│  OPERATIONAL PERFORMANCE                │
+│  Cases: 35 | Avg Response: 18 min       │
+│  SLA Adherence: 92%                     │
+│  [Highlight wins table]                 │
 │                                         │
-│  RECENT ACTIVITY (90 DAYS)              │
-│  • 14 email exchanges                   │
-│  • 6 calls / 3 meetings                 │
-│  • 2 support cases (1 resolved)         │
+│  SERVICE IMPROVEMENT PLAN               │
+│  [Circuit optimization details]         │
+│  [Named Account Support Protocol]       │
 │                                         │
-│  PIPELINE                               │
-│  [Table of open opportunities]          │
+│  STRATEGIC ROADMAP                      │
+│  [Expansion initiatives + timeline]     │
 │                                         │
-│  KEY CONTACTS                           │
-│  [Contact cards with engagement level]  │
-│                                         │
-│  RISKS & RECOMMENDATIONS               │
-│  [Bulleted risk items + actions]        │
-│                                         │
-│  TALKING POINTS                         │
-│  [Numbered conversation starters]       │
+│  JOINT ACTION PLAN                      │
+│  [Numbered collaborative next steps]    │
 │                                         │
 │  ─────────────────────────────────────  │
-│  Confidential — Zenlayer Internal       │
+│  Zenlayer — Your Edge in Global         │
+│  Connectivity                           │
 │                                         │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Technical Approach (High Level)
+## Loading / Generation State
 
-### Backend
-- New FastAPI routes for `/summary`, `/summary/{id}`, `/summary/generate`
-- MCP client integration for Salesforce queries (opportunities, cases, activities, contacts)
-- Optional M365 MCP for email/calendar data
-- AI summarization endpoint (Claude API or via MCP) to synthesize raw data into narrative
-- PDF generation via `weasyprint` or `reportlab`
+Salesforce MCP calls + AI summarization will take 15-30 seconds. The loading state should be informative, not just a spinner.
 
-### Frontend
-- Same Alpine.js + Tailwind approach for consistency
-- New Jinja2 templates for the summary generator and results pages
-- Streaming/loading state while summary generates (could take 10-30s with MCP calls)
-- Contenteditable sections for post-generation editing
-- Client-side print stylesheet as PDF fallback
-
-### Data Flow
 ```
-User selects account + options
-        │
-        ▼
-FastAPI receives request
-        │
-        ├──→ Salesforce MCP: fetch opportunities, cases, activities
-        ├──→ M365 MCP: fetch emails, meetings (optional)
-        └──→ SQLite: fetch internal QBR tracker data
-                │
-                ▼
-        Merge all data into context object
-                │
-                ▼
-        AI summarization (Claude) — generate narrative,
-        extract risks, suggest talking points
-                │
-                ▼
-        Return structured summary to frontend
-                │
-                ▼
-        Render rich results page
-                │
-        User reviews / edits
-                │
-                ▼
-        [ Export PDF ]  [ Save to DB ]
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│  Generating Internal Health Brief for Zoom...                │
+│                                                              │
+│  ✅ Fetching cases and support history...          Done      │
+│  ✅ Pulling pipeline and opportunities...          Done      │
+│  ⏳ Analyzing contacts and engagement...           Working   │
+│  ○  Generating executive narrative...              Queued    │
+│  ○  Building risk assessment...                    Queued    │
+│                                                              │
+│  ████████████░░░░░░░░  60%                                   │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Summary: Why This Design Works
+## Technical Data Flow
 
-| Concern | Solution |
-|---------|----------|
-| Feature creep / UI clutter | Two clean tabs — user picks their workflow |
-| Discoverability | Quick-action button on every row + persistent nav tab |
-| Consistency | Same visual language, components, and layout grid |
-| Speed to value | One click from dashboard → generating a summary |
-| Flexibility | Works for formal QBR prep OR quick meeting background |
-| Shareability | PDF export produces a standalone, polished document |
-| Editability | Generated content is editable before export |
+```
+User selects account + briefing type
+        │
+        ▼
+FastAPI /qbr/briefings/{id}/{type} (POST)
+        │
+        ├──→ Salesforce MCP: query Cases (by account, date range)
+        ├──→ Salesforce MCP: query Opportunities (open, won, lost)
+        ├──→ Salesforce MCP: query Contacts (by account)
+        ├──→ Salesforce MCP: query Activities/Tasks
+        ├──→ Salesforce MCP: query Opportunity Products/Solutions
+        └──→ SQLite: fetch internal QBR tracker data
+                │
+                ▼
+        Merge all data into unified context object
+                │
+                ▼
+        AI Summarization (Claude API)
+        ├──→ If type=internal: Use "internal health brief" prompt
+        └──→ If type=customer: Use "customer QBR" prompt
+                │
+                ▼
+        Return structured JSON with all sections
+                │
+                ▼
+        Render results page (Jinja2 + Alpine.js)
+                │
+        User reviews / edits sections inline
+                │
+                ▼
+        [ Export PDF ]  →  weasyprint renders HTML → PDF
+        [ Save ]        →  Store to SQLite for later retrieval
+        [ Regenerate ]  →  Re-run with same parameters
+```
+
+---
+
+## Design Principles
+
+1. **Same visual language** — Sidebar uses the same Inter font, slate palette, subtle borders. No design system clash.
+2. **Two lenses, one truth** — Both briefings draw from the same Salesforce data. The AI prompt is what changes the lens, not the data.
+3. **Candor vs. diplomacy** — The internal brief is deliberately uncomfortable. The customer QBR is deliberately reassuring. This contrast is the product's core value.
+4. **Editable before export** — Every section supports inline editing. The AI gets you 80%; the account manager owns the final 20%.
+5. **Progressive loading** — Show data as it arrives. Don't make users stare at a blank screen for 30 seconds.
+6. **Sidebar scales** — The collapsible sidebar pattern accommodates future features (analytics, reports, settings) without redesigning navigation.
