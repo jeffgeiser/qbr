@@ -9,6 +9,13 @@ services:
       - qbr-data:/app/data
     environment:
       - DB_PATH=/app/data/accounts.db
+      # Anthropic API key for briefing generation (required for briefings)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Salesforce MCP credentials (optional - briefings work without, using tracker data only)
+      - SALESFORCE_CONNECTION_TYPE=${SALESFORCE_CONNECTION_TYPE:-OAuth_2.0_Client_Credentials}
+      - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}
+      - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET:-}
+      - SALESFORCE_INSTANCE_URL=${SALESFORCE_INSTANCE_URL:-}
     restart: unless-stopped
 
 volumes:

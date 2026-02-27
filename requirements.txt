@@ -2,3 +2,5 @@ fastapi
 uvicorn
 jinja2
 python-multipart
+anthropic
+mcp>=1.25,<2
