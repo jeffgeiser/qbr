@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Internal Health Brief - {{ account.name }} - Zenlayer{% endblock %}
+
+{% block extra_styles %}
+@media print {
+    aside, .no-print { display: none !important; }
+    body { display: block !important; }
+    .print-break { page-break-before: always; }
+}
+{% endblock %}
+
+{% block content %}
+<div x-data="internalBrief()">
+    <main class="max-w-5xl mx-auto px-6 py-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <a href="/qbr/briefings" class="inline-flex items-center space-x-2 text-slate-500 hover:text-slate-900 transition-colors mb-3">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                    <span class="text-sm font-medium">Back to Briefings</span>
+                </a>
+                <h1 class="text-2xl font-bold text-slate-900">Internal Executive Health Brief</h1>
+                <div class="flex items-center space-x-3 mt-1">
+                    <span class="text-slate-600 font-medium">{{ account.name }}</span>
+                    <span class="text-slate-300">&middot;</span>
+                    <span class="text-slate-500 text-sm">Generated {{ generated_date }}</span>
+                    <span class="text-slate-300">&middot;</span>
+                    <span class="text-slate-500 text-sm">Last {{ time_range_days }} days</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 no-print">
+                <button @click="window.print()" class="inline-flex items-center space-x-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                    <span>Export PDF</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Confidential Banner -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-6 flex items-center space-x-2">
+            <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+            </svg>
+            <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Confidential — Internal Use Only</span>
+        </div>
+
+        <!-- At-Risk Scorecard -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">At-Risk Scorecard</h2>
+            <div class="space-y-4">
+                {% for dimension in briefing.scorecard %}
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm font-medium text-slate-700 w-44">{{ dimension.label }}</span>
+                    <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div class="h-full rounded-full transition-all
+                            {% if dimension.score >= 4 %}bg-emerald-500{% elif dimension.score >= 3 %}bg-amber-400{% else %}bg-rose-500{% endif %}"
+                             style="width: {{ dimension.score * 20 }}%"></div>
+                    </div>
+                    <span class="text-sm font-bold w-10 text-right
+                        {% if dimension.score >= 4 %}text-emerald-600{% elif dimension.score >= 3 %}text-amber-600{% else %}text-rose-600{% endif %}">
+                        {{ dimension.score }}/5
+                    </span>
+                    {% if dimension.score <= 2 %}
+                    <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% if briefing.overall_assessment %}
+            <div class="mt-6 p-4 bg-slate-50 rounded-xl">
+                <p class="text-sm text-slate-700 leading-relaxed">{{ briefing.overall_assessment }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Friction Points & Escalations -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Friction Points & Escalations</h2>
+            <div class="space-y-4">
+                {% for item in briefing.friction_points %}
+                <div class="border-l-4 pl-4 py-2
+                    {% if item.severity == 'critical' %}border-rose-500 bg-rose-50/50{% elif item.severity == 'warning' %}border-amber-400 bg-amber-50/50{% else %}border-slate-200{% endif %}
+                    rounded-r-lg">
+                    <div class="flex items-center space-x-2 mb-1">
+                        {% if item.severity == 'critical' %}
+                        <span class="text-xs font-bold text-rose-600 uppercase">Critical</span>
+                        {% elif item.severity == 'warning' %}
+                        <span class="text-xs font-bold text-amber-600 uppercase">Warning</span>
+                        {% endif %}
+                        <span class="text-sm font-semibold text-slate-900">{{ item.title }}</span>
+                    </div>
+                    <p class="text-sm text-slate-600 leading-relaxed">{{ item.description }}</p>
+                    {% if item.evidence %}
+                    <div class="mt-2 space-y-1">
+                        {% for e in item.evidence %}
+                        <p class="text-xs text-slate-500 pl-2 border-l-2 border-slate-200">{{ e }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Revenue Protection -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Revenue Protection</h2>
+                {% if briefing.revenue_at_risk %}
+                <div class="mb-4">
+                    <span class="text-2xl font-bold text-slate-900">${{ briefing.revenue_at_risk_total }}</span>
+                    <span class="text-sm text-slate-500 ml-1">pipeline at risk</span>
+                </div>
+                {% endif %}
+                <div class="space-y-3">
+                    {% for deal in briefing.revenue_items %}
+                    <div class="p-3 rounded-xl {% if deal.status == 'at_risk' %}bg-rose-50{% elif deal.status == 'won' %}bg-emerald-50{% else %}bg-slate-50{% endif %}">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-semibold text-slate-900">{{ deal.name }}</span>
+                            <span class="text-sm font-bold {% if deal.status == 'at_risk' %}text-rose-600{% elif deal.status == 'won' %}text-emerald-600{% else %}text-slate-600{% endif %}">
+                                ${{ deal.amount }}
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500">{{ deal.detail }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Internal Red Flags -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Internal Red Flags</h2>
+                <div class="space-y-3">
+                    {% for flag in briefing.red_flags %}
+                    <div class="flex items-start space-x-3 p-3 bg-rose-50/50 rounded-xl">
+                        <svg class="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ flag.title }}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">{{ flag.description }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Internal Action Directives -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Internal Action Directives</h2>
+            <div class="space-y-3">
+                {% for action in briefing.action_directives %}
+                <div class="flex items-start space-x-4 p-4 bg-slate-50 rounded-xl">
+                    <div class="w-7 h-7 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
+                        <span class="text-xs font-bold text-slate-600">{{ loop.index }}</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-semibold text-slate-900">{{ action.directive }}</p>
+                        {% if action.detail %}
+                        <p class="text-xs text-slate-500 mt-1">{{ action.detail }}</p>
+                        {% endif %}
+                    </div>
+                    {% if action.priority == 'urgent' %}
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 uppercase">Urgent</span>
+                    {% elif action.priority == 'high' %}
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 uppercase">High</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-center space-x-4 no-print">
+            <a href="/qbr/briefings?account_id={{ account.id }}&type=internal" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+                <span>Regenerate</span>
+            </a>
+            <button @click="window.print()" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                <span>Export PDF</span>
+            </button>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function internalBrief() {
+    return {};
+}
+</script>
+{% endblock %}

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Briefing Generator - Zenlayer{% endblock %}
+
+{% block content %}
+<div x-data="briefingGenerator()">
+    <main class="max-w-5xl mx-auto px-6 py-8">
+        <div class="mb-10">
+            <h1 class="text-3xl font-bold text-slate-900 mb-1">Account Briefing Generator</h1>
+            <p class="text-slate-500 text-sm font-medium">Generate executive briefings powered by Salesforce data</p>
+        </div>
+
+        <!-- Configuration -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-8">
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Account</label>
+                    <select x-model="selectedAccountId" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        <option value="">Choose an account...</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}">{{ account.name }} ({{ account.tier }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Time Range</label>
+                    <select x-model="timeRange" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        <option value="30">Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                        <option value="90" selected>Last 90 days</option>
+                        <option value="180">Last 6 months</option>
+                        <option value="365">Last 12 months</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Briefing Type Selection -->
+        <h2 class="text-lg font-bold text-slate-900 mb-4">Choose Briefing Type</h2>
+        <div class="grid grid-cols-2 gap-6">
+
+            <!-- Internal Executive Health Brief -->
+            <div class="bg-white rounded-2xl border-2 transition-all cursor-pointer"
+                 :class="selectedType === 'internal' ? 'border-amber-400 shadow-lg shadow-amber-50' : 'border-slate-100 hover:border-slate-200 shadow-sm'"
+                 @click="selectedType = 'internal'">
+                <div class="p-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Internal</h3>
+                            <p class="text-xs text-slate-500 font-medium">Executive Health Brief</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-600 mb-5 leading-relaxed">Candid risk assessment for internal leadership. No-fluff analysis of account health, friction points, and revenue exposure.</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                            <span>At-risk scorecard (5 dimensions)</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                            <span>Friction points & escalations</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                            <span>Revenue at risk analysis</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                            <span>Internal red flags</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                            <span>Action directives</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-8 pb-8">
+                    <button @click.stop="generateBriefing('internal')"
+                            :disabled="!selectedAccountId || isGenerating"
+                            class="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            :class="selectedType === 'internal' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                        <span x-show="!isGenerating || selectedType !== 'internal'">Generate Internal Brief</span>
+                        <span x-show="isGenerating && selectedType === 'internal'" class="flex items-center justify-center space-x-2">
+                            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <span>Generating...</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Customer-Facing QBR -->
+            <div class="bg-white rounded-2xl border-2 transition-all cursor-pointer"
+                 :class="selectedType === 'customer' ? 'border-blue-400 shadow-lg shadow-blue-50' : 'border-slate-100 hover:border-slate-200 shadow-sm'"
+                 @click="selectedType = 'customer'">
+                <div class="p-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Customer</h3>
+                            <p class="text-xs text-slate-500 font-medium">Facing QBR</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-600 mb-5 leading-relaxed">Professional partnership review for presenting to the customer. Demonstrates transparency, proves ROI, and roadmaps the future.</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span>Executive summary of partnership</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span>Operational performance highlights</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span>Service improvement plan</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span>Strategic roadmap & expansion</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-slate-500">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span>Joint action plan</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-8 pb-8">
+                    <button @click.stop="generateBriefing('customer')"
+                            :disabled="!selectedAccountId || isGenerating"
+                            class="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            :class="selectedType === 'customer' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                        <span x-show="!isGenerating || selectedType !== 'customer'">Generate Customer QBR</span>
+                        <span x-show="isGenerating && selectedType === 'customer'" class="flex items-center justify-center space-x-2">
+                            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <span>Generating...</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div x-show="isGenerating" x-cloak class="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+            <div class="flex items-center space-x-3 mb-6">
+                <svg class="animate-spin w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <h3 class="text-base font-bold text-slate-900" x-text="'Generating ' + (selectedType === 'internal' ? 'Internal Health Brief' : 'Customer QBR') + '...'"></h3>
+            </div>
+            <div class="space-y-3">
+                <template x-for="(step, idx) in generationSteps" :key="idx">
+                    <div class="flex items-center space-x-3">
+                        <div x-show="step.status === 'done'" class="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <div x-show="step.status === 'working'" class="w-5 h-5 flex-shrink-0">
+                            <svg class="animate-spin w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </div>
+                        <div x-show="step.status === 'pending'" class="w-5 h-5 rounded-full border-2 border-slate-200 flex-shrink-0"></div>
+                        <span class="text-sm" :class="step.status === 'done' ? 'text-slate-600' : (step.status === 'working' ? 'text-slate-900 font-medium' : 'text-slate-400')" x-text="step.label"></span>
+                        <span x-show="step.status === 'done'" class="text-xs text-slate-400">Done</span>
+                    </div>
+                </template>
+            </div>
+            <div class="mt-6 bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div class="h-full bg-blue-500 rounded-full transition-all duration-500"
+                     :style="'width: ' + generationProgress + '%'"></div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div x-show="error" x-cloak class="mt-8 bg-rose-50 rounded-2xl border border-rose-200 p-6">
+            <div class="flex items-start space-x-3">
+                <svg class="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <div>
+                    <h4 class="text-sm font-bold text-rose-800">Generation Failed</h4>
+                    <p class="text-sm text-rose-600 mt-1" x-text="error"></p>
+                    <button @click="error = null" class="mt-3 text-sm font-semibold text-rose-700 hover:text-rose-800">Dismiss</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function briefingGenerator() {
+        return {
+            selectedAccountId: '{{ preselected_account_id or "" }}',
+            selectedType: '{{ preselected_type or "" }}',
+            timeRange: '90',
+            isGenerating: false,
+            error: null,
+            generationProgress: 0,
+            generationSteps: [],
+
+            async generateBriefing(type) {
+                if (!this.selectedAccountId) return;
+                this.selectedType = type;
+                this.isGenerating = true;
+                this.error = null;
+                this.generationProgress = 0;
+
+                this.generationSteps = [
+                    { label: 'Fetching cases and support history...', status: 'working' },
+                    { label: 'Pulling pipeline and opportunities...', status: 'pending' },
+                    { label: 'Loading contacts and engagement data...', status: 'pending' },
+                    { label: 'Analyzing account activity...', status: 'pending' },
+                    { label: 'Generating executive narrative...', status: 'pending' },
+                ];
+
+                try {
+                    const response = await fetch('/qbr/api/briefings/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            account_id: this.selectedAccountId,
+                            briefing_type: type,
+                            time_range_days: parseInt(this.timeRange),
+                        }),
+                    });
+
+                    // Simulate step progression while waiting
+                    this.advanceSteps();
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Failed to generate briefing');
+                    }
+
+                    // Complete all steps
+                    this.generationSteps.forEach(s => s.status = 'done');
+                    this.generationProgress = 100;
+
+                    // Redirect to results page
+                    setTimeout(() => {
+                        window.location.href = '/qbr/briefings/' + this.selectedAccountId + '/' + type + '?result_id=' + data.result_id;
+                    }, 500);
+
+                } catch (err) {
+                    this.isGenerating = false;
+                    this.error = err.message;
+                }
+            },
+
+            advanceSteps() {
+                let step = 0;
+                const interval = setInterval(() => {
+                    if (step < this.generationSteps.length - 1 && this.isGenerating) {
+                        this.generationSteps[step].status = 'done';
+                        step++;
+                        this.generationSteps[step].status = 'working';
+                        this.generationProgress = Math.round(((step + 1) / this.generationSteps.length) * 80);
+                    } else {
+                        clearInterval(interval);
+                    }
+                }, 3000);
+            }
+        }
+    }
+</script>
+{% endblock %}
