@@ -279,7 +279,18 @@
                         }),
                     });
 
-                    // Stream the response
+                    if (!response.ok) {
+                        let errMsg = `Server error (${response.status})`;
+                        try {
+                            const errBody = await response.text();
+                            const errJson = JSON.parse(errBody);
+                            errMsg = errJson.detail || errJson.message || errMsg;
+                        } catch(e) {}
+                        this.error = errMsg;
+                        return;
+                    }
+
+                    // Stream the SSE response
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
@@ -307,7 +318,8 @@
                     }
 
                 } catch (err) {
-                    this.error = err.message || 'Failed to generate briefing';
+                    console.error('Briefing fetch error:', err);
+                    this.error = err.message || 'Failed to connect to server';
                 } finally {
                     this.isGenerating = false;
                     this.isStreaming = false;
@@ -316,7 +328,17 @@
 
             handleStreamEvent(event) {
                 switch (event.type) {
+                    case 'status':
+                        this.isStreaming = true;
+                        this.messages.push({
+                            role: 'assistant',
+                            content: event.message,
+                        });
+                        this.scrollToBottom();
+                        break;
+
                     case 'tool_start':
+                        this.isStreaming = true;
                         this.messages.push({
                             role: 'tool_activity',
                             content: event.message,
