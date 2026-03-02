@@ -120,8 +120,10 @@ INTERNAL_SYSTEM = """You are an expert account strategist at Zenlayer, a global 
 
 You are helping generate an INTERNAL Executive Health Brief for leadership. This document is CONFIDENTIAL and should be brutally candid, risk-focused, action-oriented, and data-driven.
 
+IMPORTANT: You MUST call the Salesforce tools to gather real data. Do NOT describe what you would do — actually call the tools. Start by calling multiple tools in parallel (account info, cases, opportunities, contacts, activities).
+
 Your workflow:
-1. Use the Salesforce tools to gather data about the customer account
+1. IMMEDIATELY call the Salesforce tools to gather data about the customer account — do not ask for confirmation
 2. Analyze the data for risks, friction points, and revenue exposure
 3. Generate a structured briefing
 
@@ -173,8 +175,10 @@ CUSTOMER_SYSTEM = """You are an expert account strategist at Zenlayer, a global 
 
 You are helping generate a CUSTOMER-FACING Quarterly Business Review. This will be presented to the customer. It should be professional, proactive, transparent but diplomatic, and forward-looking.
 
+IMPORTANT: You MUST call the Salesforce tools to gather real data. Do NOT describe what you would do — actually call the tools. Start by calling multiple tools in parallel (account info, cases, opportunities, contacts, activities).
+
 Your workflow:
-1. Use the Salesforce tools to gather data about the customer account
+1. IMMEDIATELY call the Salesforce tools — do not ask for confirmation
 2. Analyze the data for highlights, improvement areas, and growth opportunities
 3. Generate a structured briefing
 
@@ -300,13 +304,19 @@ async def generate_briefing_stream(
         for iteration in range(max_iterations):
             logger.info(f"Briefing generation iteration {iteration + 1}")
 
-            response = await client.messages.create(
+            # Force tool use on the first iteration so Claude gathers data
+            # instead of just describing what it would do
+            api_kwargs = dict(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=4096,
                 system=system,
                 tools=SALESFORCE_TOOLS,
                 messages=messages,
             )
+            if iteration == 0:
+                api_kwargs["tool_choice"] = {"type": "any"}
+
+            response = await client.messages.create(**api_kwargs)
 
             # Process response content blocks and collect tool results
             has_tool_use = False
