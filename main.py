@@ -39,11 +39,13 @@ def init_db():
             tier TEXT NOT NULL,
             owner TEXT DEFAULT '',
             health_sentiment TEXT DEFAULT 'green',
+            engagement_stage TEXT DEFAULT '',
             next_qbr_date TEXT DEFAULT '',
             qbr_q1 INTEGER DEFAULT 0,
             qbr_q2 INTEGER DEFAULT 0,
             qbr_q3 INTEGER DEFAULT 0,
             qbr_q4 INTEGER DEFAULT 0,
+            qbr_milestones TEXT DEFAULT '{}',
             key_learnings TEXT DEFAULT '',
             next_steps TEXT DEFAULT '',
             latest_update TEXT DEFAULT '',
@@ -53,17 +55,19 @@ def init_db():
     ''')
     conn.commit()
 
-    # Migration for existing databases
-    try:
-        cursor.execute("ALTER TABLE accounts ADD COLUMN next_steps TEXT DEFAULT ''")
-        conn.commit()
-    except:
-        pass
-    try:
-        cursor.execute("ALTER TABLE accounts ADD COLUMN latest_update TEXT DEFAULT ''")
-        conn.commit()
-    except:
-        pass
+    # Migrations for existing databases
+    migrations = [
+        "ALTER TABLE accounts ADD COLUMN next_steps TEXT DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN latest_update TEXT DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN engagement_stage TEXT DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN qbr_milestones TEXT DEFAULT '{}'",
+    ]
+    for migration in migrations:
+        try:
+            cursor.execute(migration)
+            conn.commit()
+        except:
+            pass
 
     # Briefing results table
     cursor.execute('''
@@ -115,25 +119,62 @@ def init_db():
         conn.commit()
     conn.close()
 
+def _safe_json(val, default):
+    if not val:
+        return default
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default
+
+def _safe_col(row, col, default=""):
+    return row[col] if col in row.keys() else default
+
 def row_to_account(row):
+    # Parse QBR milestones — {q1: {status, date}, q2: ...}
+    milestones_raw = _safe_json(_safe_col(row, "qbr_milestones", "{}"), {})
+    default_milestone = {"status": "not_started", "date": ""}
+
+    # Backfill from legacy boolean columns
+    qbr_milestones = {}
+    for q in ["q1", "q2", "q3", "q4"]:
+        if q in milestones_raw and milestones_raw[q].get("status"):
+            qbr_milestones[q] = milestones_raw[q]
+        else:
+            is_done = bool(row[f"qbr_{q}"]) if f"qbr_{q}" in row.keys() else False
+            qbr_milestones[q] = {"status": "completed" if is_done else "not_started", "date": ""}
+
+    # Enhanced contacts: each contact now has name, email, title, linkedin
+    contacts_raw = _safe_json(row["contacts"], [])
+    contacts = []
+    for c in contacts_raw:
+        contacts.append({
+            "name": c.get("name", ""),
+            "email": c.get("email", ""),
+            "title": c.get("title", ""),
+            "linkedin": c.get("linkedin", ""),
+        })
+
     return {
         "id": row["id"],
         "name": row["name"],
         "tier": row["tier"],
         "owner": row["owner"],
         "healthSentiment": row["health_sentiment"],
+        "engagementStage": _safe_col(row, "engagement_stage", ""),
         "nextQbrDate": row["next_qbr_date"],
         "qbrCompletion": {
-            "q1": bool(row["qbr_q1"]),
-            "q2": bool(row["qbr_q2"]),
-            "q3": bool(row["qbr_q3"]),
-            "q4": bool(row["qbr_q4"])
+            "q1": qbr_milestones["q1"]["status"] == "completed",
+            "q2": qbr_milestones["q2"]["status"] == "completed",
+            "q3": qbr_milestones["q3"]["status"] == "completed",
+            "q4": qbr_milestones["q4"]["status"] == "completed",
         },
+        "qbrMilestones": qbr_milestones,
         "keyLearnings": row["key_learnings"] or "",
-        "nextSteps": row["next_steps"] if "next_steps" in row.keys() else "",
-        "latestUpdate": row["latest_update"] if "latest_update" in row.keys() else "",
-        "actionItems": json.loads(row["action_items"]),
-        "contacts": json.loads(row["contacts"])
+        "nextSteps": _safe_col(row, "next_steps", ""),
+        "latestUpdate": _safe_col(row, "latest_update", ""),
+        "actionItems": _safe_json(row["action_items"], []),
+        "contacts": contacts,
     }
 
 def get_all_accounts():
@@ -155,25 +196,30 @@ def get_account_by_id(account_id: str):
 def save_account(account_data: dict):
     conn = get_db()
     cursor = conn.cursor()
+    milestones = account_data.get("qbrMilestones", {})
     cursor.execute('''
-        INSERT OR REPLACE INTO accounts (id, name, tier, owner, health_sentiment, next_qbr_date, qbr_q1, qbr_q2, qbr_q3, qbr_q4, key_learnings, next_steps, latest_update, action_items, contacts)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO accounts (id, name, tier, owner, health_sentiment, engagement_stage, next_qbr_date,
+            qbr_q1, qbr_q2, qbr_q3, qbr_q4, qbr_milestones,
+            key_learnings, next_steps, latest_update, action_items, contacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         account_data["id"],
         account_data["name"],
         account_data["tier"],
         account_data["owner"],
         account_data["healthSentiment"],
-        account_data["nextQbrDate"],
-        1 if account_data["qbrCompletion"]["q1"] else 0,
-        1 if account_data["qbrCompletion"]["q2"] else 0,
-        1 if account_data["qbrCompletion"]["q3"] else 0,
-        1 if account_data["qbrCompletion"]["q4"] else 0,
-        account_data["keyLearnings"],
+        account_data.get("engagementStage", ""),
+        account_data.get("nextQbrDate", ""),
+        1 if milestones.get("q1", {}).get("status") == "completed" else 0,
+        1 if milestones.get("q2", {}).get("status") == "completed" else 0,
+        1 if milestones.get("q3", {}).get("status") == "completed" else 0,
+        1 if milestones.get("q4", {}).get("status") == "completed" else 0,
+        json.dumps(milestones),
+        account_data.get("keyLearnings", ""),
         account_data.get("nextSteps", ""),
         account_data.get("latestUpdate", ""),
-        json.dumps(account_data["actionItems"]),
-        json.dumps(account_data["contacts"])
+        json.dumps(account_data.get("actionItems", [])),
+        json.dumps(account_data.get("contacts", []))
     ))
     conn.commit()
     conn.close()
@@ -286,61 +332,76 @@ async def account_details(account_id: str):
 # --- Routes: Save / Delete Account ---
 
 @app.post("/save")
-async def save_account_endpoint(
-    id: Optional[str] = Form(None),
-    name: str = Form(...),
-    tier: str = Form(...),
-    owner: str = Form(""),
-    health_sentiment: Optional[str] = Form("green"),
-    next_qbr_date: Optional[str] = Form(""),
-    key_learnings: Optional[str] = Form(""),
-    next_steps: Optional[str] = Form(""),
-    latest_update: Optional[str] = Form(""),
-    contacts_json: Optional[str] = Form("[]"),
-    action_items_json: Optional[str] = Form("[]"),
-    q1: Optional[str] = Form(None),
-    q2: Optional[str] = Form(None),
-    q3: Optional[str] = Form(None),
-    q4: Optional[str] = Form(None)
-):
-    qbr = {
-        "q1": q1 == "on",
-        "q2": q2 == "on",
-        "q3": q3 == "on",
-        "q4": q4 == "on"
-    }
+async def save_account_endpoint(request: Request):
+    """Accept either JSON body or form data for saving accounts."""
+    content_type = request.headers.get("content-type", "")
 
+    if "application/json" in content_type:
+        body = await request.json()
+        account_id = body.get("id") or str(uuid.uuid4())
+        contacts = [c for c in body.get("contacts", []) if c.get("name") or c.get("email")]
+        action_items = [item for item in body.get("actionItems", []) if item and item.strip()]
+        account_data = {
+            "id": account_id,
+            "name": body.get("name", ""),
+            "tier": body.get("tier", "Tier 2"),
+            "owner": body.get("owner", ""),
+            "healthSentiment": body.get("healthSentiment", "green"),
+            "engagementStage": body.get("engagementStage", ""),
+            "nextQbrDate": body.get("nextQbrDate", ""),
+            "keyLearnings": body.get("keyLearnings", ""),
+            "nextSteps": body.get("nextSteps", ""),
+            "latestUpdate": body.get("latestUpdate", ""),
+            "contacts": contacts,
+            "actionItems": action_items,
+            "qbrMilestones": body.get("qbrMilestones", {}),
+        }
+        save_account(account_data)
+        if body.get("id"):
+            return JSONResponse({"success": True, "redirect": f"/qbr/account/{account_id}"})
+        else:
+            return JSONResponse({"success": True, "redirect": "/qbr/"})
+
+    # Legacy form submission support
+    form = await request.form()
+    account_id = form.get("id") or str(uuid.uuid4())
     try:
-        contacts = json.loads(contacts_json) if contacts_json else []
-        contacts = [c for c in contacts if c.get('name') or c.get('email')]
+        contacts = json.loads(form.get("contacts_json", "[]"))
+        contacts = [c for c in contacts if c.get("name") or c.get("email")]
     except:
         contacts = []
-
     try:
-        action_items = json.loads(action_items_json) if action_items_json else []
+        action_items = json.loads(form.get("action_items_json", "[]"))
         action_items = [item for item in action_items if item.strip()]
     except:
         action_items = []
 
-    account_id = id if id else str(uuid.uuid4())
+    milestones = {}
+    for q in ["q1", "q2", "q3", "q4"]:
+        milestones[q] = {
+            "status": "completed" if form.get(q) == "on" else "not_started",
+            "date": "",
+        }
+
     account_data = {
         "id": account_id,
-        "name": name,
-        "tier": tier,
-        "owner": owner,
-        "healthSentiment": health_sentiment or "green",
-        "nextQbrDate": next_qbr_date or "",
-        "keyLearnings": key_learnings or "",
-        "nextSteps": next_steps or "",
-        "latestUpdate": latest_update or "",
+        "name": form.get("name", ""),
+        "tier": form.get("tier", "Tier 2"),
+        "owner": form.get("owner", ""),
+        "healthSentiment": form.get("health_sentiment", "green"),
+        "engagementStage": form.get("engagement_stage", ""),
+        "nextQbrDate": form.get("next_qbr_date", ""),
+        "keyLearnings": form.get("key_learnings", ""),
+        "nextSteps": form.get("next_steps", ""),
+        "latestUpdate": form.get("latest_update", ""),
         "contacts": contacts,
         "actionItems": action_items,
-        "qbrCompletion": qbr
+        "qbrMilestones": milestones,
     }
     save_account(account_data)
 
-    if id:
-        return RedirectResponse(url=f"/qbr/account/{id}", status_code=303)
+    if form.get("id"):
+        return RedirectResponse(url=f"/qbr/account/{account_id}", status_code=303)
     else:
         return RedirectResponse(url="/qbr/", status_code=303)
 

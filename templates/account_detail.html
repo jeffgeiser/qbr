@@ -11,67 +11,131 @@
             <span class="text-sm font-medium">Back to Portfolio</span>
         </a>
 
-        <!-- Account Header with Metadata Badges -->
+        <!-- Account Header -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
             <div class="flex items-start justify-between">
                 <div class="flex-1">
                     <div class="flex items-center space-x-3 mb-1">
+                        <div class="w-3 h-3 rounded-full flex-shrink-0"
+                             :class="{
+                                 'bg-emerald-500': account.healthSentiment === 'green',
+                                 'bg-amber-400': account.healthSentiment === 'yellow',
+                                 'bg-rose-500': account.healthSentiment === 'red'
+                             }"></div>
                         <h1 class="text-2xl font-bold text-slate-900" x-text="account.name"></h1>
                         <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-200 text-slate-600 bg-slate-50" x-text="account.tier"></span>
+                        <span x-show="account.engagementStage"
+                              class="px-2.5 py-1 rounded-full text-[10px] font-semibold border"
+                              :class="stageBadgeClass(account.engagementStage)"
+                              x-text="account.engagementStage"></span>
                     </div>
-                    <div class="flex items-center space-x-2 text-sm text-slate-500 mb-2">
+                    <div class="flex items-center space-x-4 text-sm text-slate-500 mb-2 ml-6">
                         <span>Owner: <span class="font-medium text-slate-700" x-text="account.owner || 'Unassigned'"></span></span>
+                        <span class="text-slate-300">|</span>
+                        <span x-text="'Next QBR: ' + (account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD')"></span>
                     </div>
-                    <p x-show="account.latestUpdate" class="text-base font-semibold text-slate-700 mt-3" x-text="account.latestUpdate"></p>
+                    <p x-show="account.latestUpdate" class="text-base font-semibold text-slate-700 mt-3 ml-6" x-text="account.latestUpdate"></p>
                 </div>
-                <div class="flex flex-col items-end space-y-3">
-                    <div class="flex items-center space-x-2">
-                        <a :href="'/qbr/briefings?account_id=' + account.id"
-                           class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all inline-flex items-center space-x-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
-                            </svg>
-                            <span>Generate Briefing</span>
-                        </a>
-                        <button x-show="!isEditing" @click="isEditing = true" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all">
-                            Edit Account
-                        </button>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                <div class="flex items-center space-x-2">
+                    <a :href="'/qbr/briefings?account_id=' + account.id"
+                       class="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+                        </svg>
+                        <span>Generate Briefing</span>
+                    </a>
+                    <button x-show="!isEditing" @click="isEditing = true"
+                            class="inline-flex items-center space-x-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        <span>Edit</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- QBR Tracker Dots (compact, in header) -->
+            <div class="mt-4 ml-6 flex items-center space-x-1.5">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">QBR Progress</span>
+                <template x-for="q in ['q1', 'q2', 'q3', 'q4']" :key="q">
+                    <div class="flex items-center space-x-1">
+                        <div class="w-3 h-3 rounded-full"
                              :class="{
-                                 'bg-emerald-50 text-emerald-700 border border-emerald-200': account.healthSentiment === 'green',
-                                 'bg-amber-50 text-amber-700 border border-amber-200': account.healthSentiment === 'yellow',
-                                 'bg-rose-50 text-rose-700 border border-rose-200': account.healthSentiment === 'red'
-                             }">
-                            <div class="w-2 h-2 rounded-full"
-                                 :class="{
-                                     'bg-emerald-500': account.healthSentiment === 'green',
-                                     'bg-amber-500': account.healthSentiment === 'yellow',
-                                     'bg-rose-500': account.healthSentiment === 'red'
-                                 }"></div>
-                            <span x-text="account.healthSentiment === 'green' ? 'Healthy' : (account.healthSentiment === 'yellow' ? 'Concern' : 'At Risk')"></span>
-                        </div>
-                        <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <span x-text="'Next QBR: ' + (account.nextQbrDate ? formatDate(account.nextQbrDate) : 'TBD')"></span>
-                        </div>
+                                 'bg-emerald-500': milestoneStatus(q) === 'completed',
+                                 'bg-blue-500 ring-2 ring-blue-100': milestoneStatus(q) === 'scheduled',
+                                 'bg-slate-200': milestoneStatus(q) === 'not_started'
+                             }"></div>
+                        <span class="text-[9px] font-semibold text-slate-400 uppercase" x-text="q"></span>
                     </div>
-                </div>
+                </template>
             </div>
         </div>
 
         <!-- View Mode -->
         <div x-show="!isEditing" class="space-y-6">
-            <div class="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <div class="grid grid-cols-2 gap-8">
-                    <div>
+
+            <!-- QBR Status Timeline Stepper -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">QBR Status Timeline</label>
+                <div class="flex items-start px-4">
+                    <template x-for="(q, idx) in ['q1', 'q2', 'q3', 'q4']" :key="q">
+                        <div class="flex items-start" :class="idx < 3 ? 'flex-1' : ''">
+                            <div class="flex flex-col items-center min-w-[60px]">
+                                <div class="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shadow-sm"
+                                     :class="{
+                                         'bg-emerald-500 text-white': milestoneStatus(q) === 'completed',
+                                         'bg-blue-500 text-white ring-4 ring-blue-100': milestoneStatus(q) === 'scheduled',
+                                         'bg-slate-100 text-slate-400': milestoneStatus(q) === 'not_started'
+                                     }">
+                                    <template x-if="milestoneStatus(q) === 'completed'">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    </template>
+                                    <template x-if="milestoneStatus(q) === 'scheduled'">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    </template>
+                                    <template x-if="milestoneStatus(q) === 'not_started'">
+                                        <span class="text-xs font-bold" x-text="q.toUpperCase()"></span>
+                                    </template>
+                                </div>
+                                <span class="text-xs font-bold mt-2 uppercase"
+                                      :class="{
+                                          'text-emerald-600': milestoneStatus(q) === 'completed',
+                                          'text-blue-600': milestoneStatus(q) === 'scheduled',
+                                          'text-slate-400': milestoneStatus(q) === 'not_started'
+                                      }"
+                                      x-text="q.toUpperCase()"></span>
+                                <span class="text-[10px] font-medium mt-0.5"
+                                      :class="{
+                                          'text-emerald-500': milestoneStatus(q) === 'completed',
+                                          'text-blue-500': milestoneStatus(q) === 'scheduled',
+                                          'text-slate-300': milestoneStatus(q) === 'not_started'
+                                      }"
+                                      x-text="milestoneStatus(q) === 'completed' ? 'Completed' : (milestoneStatus(q) === 'scheduled' ? 'Scheduled' : 'Not Started')"></span>
+                                <span x-show="milestoneDate(q)"
+                                      class="text-[10px] text-slate-400"
+                                      x-text="milestoneDate(q) ? formatDate(milestoneDate(q)) : ''"></span>
+                            </div>
+                            <template x-if="idx < 3">
+                                <div class="flex-1 mt-[22px] mx-2">
+                                    <div class="h-[2px] w-full rounded-full"
+                                         :class="milestoneStatus(['q1','q2','q3','q4'][idx]) === 'completed' ? 'bg-emerald-300' : 'bg-slate-200'"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Two-Column Grid: Details + Contacts -->
+            <div class="grid grid-cols-5 gap-6">
+                <div class="col-span-3 space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Key Learnings</label>
                         <template x-if="account.keyLearnings">
                             <ul class="space-y-2">
                                 <template x-for="line in account.keyLearnings.split('\n').filter(l => l.trim())">
                                     <li class="flex items-start space-x-2 text-sm text-slate-700">
-                                        <span class="text-slate-400 mt-0.5">&bull;</span>
+                                        <span class="text-slate-400 mt-0.5">&#8226;</span>
                                         <span x-text="line.replace(/^[-\u2022*]\s*/, '')"></span>
                                     </li>
                                 </template>
@@ -79,47 +143,46 @@
                         </template>
                         <p x-show="!account.keyLearnings" class="text-sm text-slate-400 italic">No key learnings recorded yet.</p>
                     </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Action Items</label>
-                        <template x-if="account.actionItems && account.actionItems.length > 0">
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Next Steps</label>
+                        <template x-if="account.nextSteps">
                             <ul class="space-y-2">
-                                <template x-for="(item, index) in account.actionItems" :key="index">
+                                <template x-for="line in account.nextSteps.split('\n').filter(l => l.trim())">
                                     <li class="flex items-start space-x-2 text-sm text-slate-700">
-                                        <span class="text-slate-400 mt-0.5">&bull;</span>
-                                        <span x-text="item"></span>
+                                        <span class="text-slate-400 mt-0.5">&#8226;</span>
+                                        <span x-text="line.replace(/^[-\u2022*]\s*/, '')"></span>
                                     </li>
                                 </template>
                             </ul>
                         </template>
-                        <p x-show="!account.actionItems || account.actionItems.length === 0" class="text-sm text-slate-400 italic">No action items defined yet.</p>
+                        <p x-show="!account.nextSteps" class="text-sm text-slate-400 italic">No next steps defined yet.</p>
                     </div>
                 </div>
-            </div>
 
-            <div class="grid grid-cols-3 gap-6">
-                <div class="col-span-2 space-y-6">
-                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">QBR Completion Tracker</label>
-                        <div class="flex space-x-3">
-                            <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
-                                <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                     class="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold uppercase"
-                                     x-text="q"></div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-span-1">
+                <!-- Contacts Sidebar -->
+                <div class="col-span-2">
                     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sticky top-28">
-                        <div class="flex items-center space-x-2 mb-4">
-                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacts</label>
-                        </div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Primary Contacts</label>
                         <div x-show="account.contacts && account.contacts.length > 0" class="space-y-3">
                             <template x-for="(contact, index) in account.contacts" :key="index">
-                                <div class="p-3 bg-slate-50 rounded-xl">
-                                    <p class="text-sm font-medium text-slate-900" x-text="contact.name"></p>
-                                    <a :href="'mailto:' + contact.email" class="text-xs text-blue-600 hover:text-blue-700" x-text="contact.email"></a>
+                                <div class="bg-slate-50/80 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                                             x-text="contact.name ? contact.name.charAt(0).toUpperCase() : '?'"></div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-semibold text-slate-900 truncate" x-text="contact.name"></p>
+                                            <p x-show="contact.title" class="text-xs text-slate-500 truncate" x-text="contact.title"></p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2.5 flex items-center space-x-3 pl-[52px]">
+                                        <a x-show="contact.email" :href="'mailto:' + contact.email"
+                                           class="text-xs text-blue-600 hover:text-blue-700 hover:underline truncate" x-text="contact.email"></a>
+                                        <a x-show="contact.linkedin" :href="contact.linkedin" target="_blank"
+                                           class="text-slate-400 hover:text-[#0077B5] transition-colors flex-shrink-0"
+                                           title="LinkedIn Profile">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                        </a>
+                                    </div>
                                 </div>
                             </template>
                         </div>
@@ -130,147 +193,204 @@
         </div>
 
         <!-- Edit Mode -->
-        <form x-show="isEditing" @submit.prevent="submitForm()" class="space-y-6">
-            <input type="hidden" name="id" :value="account.id">
+        <div x-show="isEditing" x-cloak class="space-y-6">
 
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6">
-                <div class="grid grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
-                        <input name="name" x-model="account.name" maxlength="35" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
-                        <p class="text-xs text-slate-400 mt-1">Max 35 characters</p>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
-                        <input name="owner" x-model="account.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                    </div>
+            <!-- Section: Account Info -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-4 bg-slate-50/50 border-b border-slate-100">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Account Information</h3>
                 </div>
-                <div class="grid grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
-                        <select name="tier" x-model="account.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                            <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
-                        </select>
+                <div class="p-8 space-y-6">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Account Name</label>
+                            <input x-model="account.name" maxlength="35" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400" required>
+                            <p class="text-xs text-slate-400 mt-1">Max 35 characters</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Owner</label>
+                            <input x-model="account.owner" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tier</label>
+                            <select x-model="account.tier" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                                <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next QBR Date</label>
+                            <input type="date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Engagement Stage</label>
+                            <select x-model="account.engagementStage" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                                <option value="">-- None --</option>
+                                <option>Not Started</option>
+                                <option>Scheduling</option>
+                                <option>Content Prep</option>
+                                <option>Deck Review</option>
+                                <option>QBR Delivered</option>
+                                <option>Follow-up Sent</option>
+                            </select>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next QBR</label>
-                        <input type="date" name="next_qbr_date" x-model="account.nextQbrDate" class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
-                    <div class="flex space-x-3">
-                        <label class="cursor-pointer">
-                            <input type="radio" name="health_sentiment" value="green" x-model="account.healthSentiment" class="hidden">
-                            <div :class="account.healthSentiment === 'green' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''"
-                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 transition-all">
-                                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
-                                <span class="text-sm font-medium">Healthy</span>
-                            </div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="health_sentiment" value="yellow" x-model="account.healthSentiment" class="hidden">
-                            <div :class="account.healthSentiment === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-2' : ''"
-                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 transition-all">
-                                <div class="w-3 h-3 rounded-full bg-amber-400"></div>
-                                <span class="text-sm font-medium">Concern</span>
-                            </div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="health_sentiment" value="red" x-model="account.healthSentiment" class="hidden">
-                            <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
-                                 class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
-                                <div class="w-3 h-3 rounded-full bg-rose-500"></div>
-                                <span class="text-sm font-medium">At Risk</span>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">QBR Completion Tracker</label>
-                    <div class="grid grid-cols-4 gap-3">
-                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Health Sentiment</label>
+                        <div class="flex space-x-3">
                             <label class="cursor-pointer">
-                                <input type="checkbox" :name="q" x-model="account.qbrCompletion[q]" class="hidden">
-                                <div :class="account.qbrCompletion[q] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'"
-                                     class="px-4 py-3 rounded-xl text-center text-sm font-bold uppercase transition-all"
-                                     x-text="q"></div>
+                                <input type="radio" value="green" x-model="account.healthSentiment" class="hidden">
+                                <div :class="account.healthSentiment === 'green' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''"
+                                     class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 transition-all">
+                                    <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                    <span class="text-sm font-medium">Healthy</span>
+                                </div>
                             </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" value="yellow" x-model="account.healthSentiment" class="hidden">
+                                <div :class="account.healthSentiment === 'yellow' ? 'ring-2 ring-amber-400 ring-offset-2' : ''"
+                                     class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 transition-all">
+                                    <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                                    <span class="text-sm font-medium">Concern</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" value="red" x-model="account.healthSentiment" class="hidden">
+                                <div :class="account.healthSentiment === 'red' ? 'ring-2 ring-rose-500 ring-offset-2' : ''"
+                                     class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 transition-all">
+                                    <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                                    <span class="text-sm font-medium">At Risk</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: QBR Lifecycle Management -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-4 bg-slate-50/50 border-b border-slate-100">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">QBR Lifecycle Management</h3>
+                </div>
+                <div class="p-8">
+                    <div class="grid grid-cols-4 gap-4">
+                        <template x-for="q in ['q1', 'q2', 'q3', 'q4']" :key="q">
+                            <div class="bg-slate-50/80 rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-xs font-black text-slate-600 uppercase" x-text="q"></span>
+                                    <div class="w-2.5 h-2.5 rounded-full"
+                                         :class="{
+                                             'bg-emerald-500': account.qbrMilestones[q].status === 'completed',
+                                             'bg-blue-500': account.qbrMilestones[q].status === 'scheduled',
+                                             'bg-slate-300': account.qbrMilestones[q].status === 'not_started'
+                                         }"></div>
+                                </div>
+                                <select x-model="account.qbrMilestones[q].status"
+                                        class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-blue-400 mb-2">
+                                    <option value="not_started">Not Started</option>
+                                    <option value="scheduled">Scheduled</option>
+                                    <option value="completed">Completed</option>
+                                </select>
+                                <input type="date" x-model="account.qbrMilestones[q].date"
+                                       class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-400"
+                                       :class="account.qbrMilestones[q].status === 'not_started' ? 'opacity-40' : ''">
+                            </div>
                         </template>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <div class="flex items-center justify-between mb-4">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Primary Contacts</label>
+            <!-- Section: Stakeholders -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Stakeholders</h3>
                     <button type="button" @click="addContact()" class="text-xs font-semibold text-blue-600 hover:text-blue-700">+ Add Contact</button>
                 </div>
-                <div class="space-y-3">
-                    <template x-for="(contact, index) in account.contacts" :key="index">
-                        <div class="flex items-center space-x-3">
-                            <input type="text" x-model="contact.name" placeholder="Name" class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                            <input type="email" x-model="contact.email" placeholder="Email" class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                            <button type="button" @click="removeContact(index)" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </div>
-                    </template>
-                </div>
-                <p x-show="account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet. Click "Add Contact" to add one.</p>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Latest Update</label>
-                <input type="text" x-model="account.latestUpdate" maxlength="50" placeholder="Short headline for current status..."
-                       class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                <p class="text-xs text-slate-400 mt-2">A brief status headline shown on the main dashboard. Max 50 characters.</p>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <div class="grid grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Key Learnings</label>
-                        <textarea x-model="account.keyLearnings" rows="5" placeholder="Record insights and learnings from the last QBR..."
-                                  class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Next Steps</label>
-                        <textarea x-model="account.nextSteps" rows="5" placeholder="Define the next steps and priorities..."
-                                  class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <div class="flex items-center justify-between mb-4">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Action Items</label>
-                    <button type="button" @click="addActionItem()" class="text-xs font-semibold text-blue-600 hover:text-blue-700">+ Add Item</button>
-                </div>
-                <div class="space-y-3">
-                    <template x-for="(item, index) in account.actionItems" :key="index">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span class="text-[10px] font-bold text-blue-600" x-text="index + 1"></span>
+                <div class="p-8">
+                    <div x-show="account.contacts.length > 0" class="space-y-4">
+                        <template x-for="(contact, index) in account.contacts" :key="index">
+                            <div class="bg-slate-50/60 rounded-xl p-5 relative group/contact">
+                                <button type="button" @click="removeContact(index)"
+                                        class="absolute top-3 right-3 p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors opacity-0 group-hover/contact:opacity-100">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Name</label>
+                                        <input type="text" x-model="contact.name" placeholder="Full name"
+                                               class="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Email</label>
+                                        <input type="email" x-model="contact.email" placeholder="email@company.com"
+                                               class="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Job Title</label>
+                                        <input type="text" x-model="contact.title" placeholder="VP of Engineering"
+                                               class="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">LinkedIn URL</label>
+                                        <input type="url" x-model="contact.linkedin" placeholder="https://linkedin.com/in/..."
+                                               class="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-blue-400">
+                                    </div>
+                                </div>
                             </div>
-                            <input type="text" x-model="account.actionItems[index]" placeholder="Action item..." class="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
-                            <button type="button" @click="removeActionItem(index)" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </div>
-                    </template>
+                        </template>
+                    </div>
+                    <p x-show="account.contacts.length === 0" class="text-sm text-slate-400">No contacts added yet. Click "+ Add Contact" above.</p>
                 </div>
-                <p x-show="account.actionItems.length === 0" class="text-sm text-slate-400">No action items yet. Click "Add Item" to add one.</p>
             </div>
 
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                <div class="flex space-x-3">
-                    <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">Save Changes</button>
-                    <button type="button" @click="isEditing = false; resetAccount()" class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all font-semibold">Cancel</button>
-                    <button type="button" @click="showDeleteConfirm = true" class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">Delete</button>
+            <!-- Section: Intelligence Inputs -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-4 bg-slate-50/50 border-b border-slate-100">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Intelligence Inputs</h3>
+                </div>
+                <div class="p-8 space-y-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Latest Update</label>
+                        <input type="text" x-model="account.latestUpdate" maxlength="50" placeholder="Short headline for current status..."
+                               class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400">
+                        <p class="text-xs text-slate-400 mt-1">Brief status headline shown on the dashboard. Max 50 characters.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Key Learnings</label>
+                            <textarea x-model="account.keyLearnings" rows="5" placeholder="Record insights and learnings from the last QBR..."
+                                      class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+                            <p class="text-xs text-slate-400 mt-1">One per line. Use bullet points or plain text.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Steps</label>
+                            <textarea x-model="account.nextSteps" rows="5" placeholder="Define the next steps and priorities..."
+                                      class="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-blue-400 resize-none"></textarea>
+                            <p class="text-xs text-slate-400 mt-1">One per line. Will appear as a bulleted list.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </form>
+
+            <!-- Action Bar -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                <div class="flex items-center space-x-3">
+                    <button @click="submitForm()" type="button"
+                            class="flex-1 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all">
+                        Save Changes
+                    </button>
+                    <button type="button" @click="isEditing = false; resetAccount()"
+                            class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all font-semibold">
+                        Cancel
+                    </button>
+                    <button type="button" @click="showDeleteConfirm = true"
+                            class="bg-rose-50 text-rose-500 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-semibold">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Delete Confirmation Modal -->
@@ -307,6 +427,20 @@
                 if (!this.account.keyLearnings) this.account.keyLearnings = '';
                 if (!this.account.nextSteps) this.account.nextSteps = '';
                 if (!this.account.latestUpdate) this.account.latestUpdate = '';
+                if (!this.account.engagementStage) this.account.engagementStage = '';
+                if (!this.account.qbrMilestones) {
+                    this.account.qbrMilestones = {
+                        q1: { status: 'not_started', date: '' },
+                        q2: { status: 'not_started', date: '' },
+                        q3: { status: 'not_started', date: '' },
+                        q4: { status: 'not_started', date: '' }
+                    };
+                }
+                for (const q of ['q1', 'q2', 'q3', 'q4']) {
+                    if (!this.account.qbrMilestones[q]) {
+                        this.account.qbrMilestones[q] = { status: 'not_started', date: '' };
+                    }
+                }
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('edit') === 'true') {
                     this.isEditing = true;
@@ -324,41 +458,74 @@
                 if (!this.account.keyLearnings) this.account.keyLearnings = '';
                 if (!this.account.nextSteps) this.account.nextSteps = '';
                 if (!this.account.latestUpdate) this.account.latestUpdate = '';
+                if (!this.account.engagementStage) this.account.engagementStage = '';
+                if (!this.account.qbrMilestones) {
+                    this.account.qbrMilestones = {
+                        q1: { status: 'not_started', date: '' },
+                        q2: { status: 'not_started', date: '' },
+                        q3: { status: 'not_started', date: '' },
+                        q4: { status: 'not_started', date: '' }
+                    };
+                }
             },
-            addContact() { this.account.contacts.push({ name: '', email: '' }); },
-            removeContact(index) { this.account.contacts.splice(index, 1); },
-            addActionItem() { this.account.actionItems.push(''); },
-            removeActionItem(index) { this.account.actionItems.splice(index, 1); },
-            submitForm() {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/qbr/save';
-                const fields = {
+            stageBadgeClass(stage) {
+                if (!stage) return 'hidden';
+                const s = stage.toLowerCase();
+                if (s.includes('schedul')) return 'bg-amber-50 text-amber-700 border-amber-200';
+                if (s.includes('content') || s.includes('prep')) return 'bg-blue-50 text-blue-700 border-blue-200';
+                if (s.includes('review')) return 'bg-purple-50 text-purple-700 border-purple-200';
+                if (s.includes('deliver') || s.includes('complete')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                if (s.includes('follow')) return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                return 'bg-slate-50 text-slate-600 border-slate-200';
+            },
+            milestoneStatus(q) {
+                if (this.account.qbrMilestones && this.account.qbrMilestones[q]) {
+                    return this.account.qbrMilestones[q].status || 'not_started';
+                }
+                return 'not_started';
+            },
+            milestoneDate(q) {
+                if (this.account.qbrMilestones && this.account.qbrMilestones[q]) {
+                    return this.account.qbrMilestones[q].date || '';
+                }
+                return '';
+            },
+            addContact() {
+                this.account.contacts.push({ name: '', email: '', title: '', linkedin: '' });
+            },
+            removeContact(index) {
+                this.account.contacts.splice(index, 1);
+            },
+            async submitForm() {
+                const payload = {
                     id: this.account.id,
                     name: this.account.name,
                     tier: this.account.tier,
                     owner: this.account.owner,
-                    health_sentiment: this.account.healthSentiment,
-                    next_qbr_date: this.account.nextQbrDate,
-                    key_learnings: this.account.keyLearnings,
-                    next_steps: this.account.nextSteps,
-                    latest_update: this.account.latestUpdate,
-                    contacts_json: JSON.stringify(this.account.contacts),
-                    action_items_json: JSON.stringify(this.account.actionItems),
-                    q1: this.account.qbrCompletion.q1 ? 'on' : '',
-                    q2: this.account.qbrCompletion.q2 ? 'on' : '',
-                    q3: this.account.qbrCompletion.q3 ? 'on' : '',
-                    q4: this.account.qbrCompletion.q4 ? 'on' : ''
+                    healthSentiment: this.account.healthSentiment,
+                    engagementStage: this.account.engagementStage,
+                    nextQbrDate: this.account.nextQbrDate,
+                    keyLearnings: this.account.keyLearnings,
+                    nextSteps: this.account.nextSteps,
+                    latestUpdate: this.account.latestUpdate,
+                    contacts: this.account.contacts.filter(c => c.name || c.email),
+                    actionItems: this.account.actionItems.filter(i => i && i.trim()),
+                    qbrMilestones: this.account.qbrMilestones
                 };
-                for (const [key, value] of Object.entries(fields)) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
+
+                try {
+                    const resp = await fetch('/qbr/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await resp.json();
+                    if (data.success && data.redirect) {
+                        window.location.href = data.redirect;
+                    }
+                } catch (err) {
+                    console.error('Save failed:', err);
                 }
-                document.body.appendChild(form);
-                form.submit();
             },
             confirmDelete() {
                 const form = document.createElement('form');
