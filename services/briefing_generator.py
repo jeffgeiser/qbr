@@ -286,96 +286,98 @@ async def generate_briefing_stream(
         yield _sse({"type": "error", "message": "ANTHROPIC_API_KEY not configured"})
         return
 
-    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    system = INTERNAL_SYSTEM if briefing_type == "internal" else CUSTOMER_SYSTEM
-    messages = [{"role": "user", "content": user_message}]
+        system = INTERNAL_SYSTEM if briefing_type == "internal" else CUSTOMER_SYSTEM
+        messages = [{"role": "user", "content": user_message}]
 
-    # Agentic loop — Claude calls tools, we execute them, feed results back
-    max_iterations = 10
-    for iteration in range(max_iterations):
-        logger.info(f"Briefing generation iteration {iteration + 1}")
+        # Agentic loop — Claude calls tools, we execute them, feed results back
+        max_iterations = 10
+        for iteration in range(max_iterations):
+            logger.info(f"Briefing generation iteration {iteration + 1}")
 
-        response = client.messages.create(
-            model="claude-sonnet-4-5-20250514",
-            max_tokens=4096,
-            system=system,
-            tools=SALESFORCE_TOOLS,
-            messages=messages,
-        )
+            response = await client.messages.create(
+                model="claude-sonnet-4-5-20250514",
+                max_tokens=4096,
+                system=system,
+                tools=SALESFORCE_TOOLS,
+                messages=messages,
+            )
 
-        # Process response content blocks
-        assistant_content = []
-        has_tool_use = False
-
-        for block in response.content:
-            if block.type == "text":
-                assistant_content.append(block)
-
-                # Check if this text contains the final briefing JSON
-                briefing_json = _extract_briefing_json(block.text)
-                if briefing_json:
-                    # Save and signal completion
-                    from main import save_briefing_result, get_all_accounts
-                    import uuid
-
-                    # Try to find the account ID from the account name in the data
-                    account_id = _find_account_id(briefing_json, user_message)
-
-                    result_id = str(uuid.uuid4())
-                    save_briefing_result(
-                        result_id, account_id, briefing_type, 90, briefing_json
-                    )
-
-                    yield _sse({
-                        "type": "briefing_ready",
-                        "result_id": result_id,
-                        "account_id": account_id,
-                    })
-                    return
-                else:
-                    # Regular assistant message
-                    yield _sse({"type": "assistant_message", "message": block.text})
-
-            elif block.type == "tool_use":
-                has_tool_use = True
-                assistant_content.append(block)
-
-                # Signal tool start
-                tool_label = _tool_display_name(block.name, block.input)
-                yield _sse({"type": "tool_start", "message": tool_label})
-
-                # Execute the tool
-                tool_result = await execute_salesforce_tool(block.name, block.input)
-
-                yield _sse({"type": "tool_done", "message": f"{tool_label} - done"})
-
-                # We'll add tool results after processing all blocks
-
-        # Add assistant message to conversation
-        messages.append({"role": "assistant", "content": response.content})
-
-        # If there were tool calls, add all tool results
-        if has_tool_use:
+            # Process response content blocks and collect tool results
+            has_tool_use = False
             tool_results = []
+            briefing_found = False
+
             for block in response.content:
-                if block.type == "tool_use":
+                if block.type == "text":
+                    # Check if this text contains the final briefing JSON
+                    briefing_json = _extract_briefing_json(block.text)
+                    if briefing_json:
+                        # Save and signal completion
+                        from main import save_briefing_result
+                        import uuid
+
+                        account_id = _find_account_id(briefing_json, user_message)
+                        result_id = str(uuid.uuid4())
+                        save_briefing_result(
+                            result_id, account_id, briefing_type, 90, briefing_json
+                        )
+
+                        yield _sse({
+                            "type": "briefing_ready",
+                            "result_id": result_id,
+                            "account_id": account_id,
+                        })
+                        briefing_found = True
+                        break
+                    else:
+                        yield _sse({"type": "assistant_message", "message": block.text})
+
+                elif block.type == "tool_use":
+                    has_tool_use = True
+
+                    # Signal tool start
+                    tool_label = _tool_display_name(block.name, block.input)
+                    yield _sse({"type": "tool_start", "message": tool_label})
+
+                    # Execute the tool
                     result = await execute_salesforce_tool(block.name, block.input)
+
+                    yield _sse({"type": "tool_done", "message": f"{tool_label} - done"})
+
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
                         "content": result,
                     })
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            # No tool use and no briefing JSON found — we're done
-            break
 
-        # Stop if Claude signals end of turn
-        if response.stop_reason == "end_turn" and not has_tool_use:
-            break
+            if briefing_found:
+                return
 
-    yield _sse({"type": "error", "message": "Generation completed but no structured briefing was produced. Please try again."})
+            # Add assistant message to conversation
+            messages.append({"role": "assistant", "content": response.content})
+
+            # If there were tool calls, add tool results
+            if has_tool_use:
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                # No tool use and no briefing JSON found — we're done
+                break
+
+            # Stop if Claude signals end of turn
+            if response.stop_reason == "end_turn" and not has_tool_use:
+                break
+
+        if not briefing_found:
+            yield _sse({"type": "error", "message": "Generation completed but no structured briefing was produced. Please try again."})
+
+    except anthropic.AuthenticationError:
+        yield _sse({"type": "error", "message": "Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY."})
+    except Exception as e:
+        logger.error(f"Briefing generation error: {e}")
+        yield _sse({"type": "error", "message": f"Generation failed: {str(e)}"})
 
 
 def _extract_briefing_json(text: str) -> dict | None:
