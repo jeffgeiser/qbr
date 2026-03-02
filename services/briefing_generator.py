@@ -286,6 +286,9 @@ async def generate_briefing_stream(
         yield _sse({"type": "error", "message": "ANTHROPIC_API_KEY not configured"})
         return
 
+    # Send an immediate heartbeat so the SSE connection stays alive
+    yield _sse({"type": "status", "message": "Starting briefing generation..."})
+
     try:
         client = anthropic.AsyncAnthropic(api_key=api_key)
 

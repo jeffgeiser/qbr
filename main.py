@@ -413,6 +413,30 @@ async def delete_account(account_id: str):
 
 # --- Routes: Briefing Generator ---
 
+@app.get("/api/briefings/health")
+async def briefings_health():
+    """Health check for briefing dependencies."""
+    checks = {}
+    try:
+        import anthropic
+        checks["anthropic_sdk"] = "ok"
+    except ImportError as e:
+        checks["anthropic_sdk"] = f"missing: {e}"
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    checks["anthropic_key"] = "configured" if api_key else "missing"
+    if api_key:
+        checks["anthropic_key_preview"] = api_key[:8] + "..."
+
+    try:
+        from services.briefing_generator import generate_briefing_stream
+        checks["briefing_generator"] = "ok"
+    except ImportError as e:
+        checks["briefing_generator"] = f"import error: {e}"
+
+    return JSONResponse(checks)
+
+
 @app.get("/briefings", response_class=HTMLResponse)
 async def briefings_page(type: Optional[str] = None):
     return render_template(
@@ -435,11 +459,19 @@ async def generate_briefing_endpoint(request: Request):
     if not user_message.strip():
         return JSONResponse({"detail": "user_message is required"}, status_code=400)
 
-    from services.briefing_generator import generate_briefing_stream
+    try:
+        from services.briefing_generator import generate_briefing_stream
+    except ImportError as e:
+        logger.error(f"Failed to import briefing_generator: {e}")
+        return JSONResponse({"detail": f"Briefing service unavailable: {e}"}, status_code=500)
 
     async def event_stream():
-        async for event in generate_briefing_stream(briefing_type, user_message):
-            yield event
+        try:
+            async for event in generate_briefing_stream(briefing_type, user_message):
+                yield event
+        except Exception as e:
+            logger.error(f"Stream error: {e}")
+            yield f'data: {{"type": "error", "message": "Stream error: {str(e)}"}}\n\n'
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
