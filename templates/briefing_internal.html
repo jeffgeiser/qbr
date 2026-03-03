@@ -4,9 +4,45 @@
 
 {% block extra_styles %}
 @media print {
+    @page { margin: 0.75in 0.6in; size: letter; }
     aside, .no-print { display: none !important; }
-    body { display: block !important; }
-    .print-break { page-break-before: always; }
+    html, body { display: block !important; height: auto !important; overflow: visible !important; background: white !important; }
+    body > .flex-1 { overflow: visible !important; }
+
+    /* Keep each section card together on one page */
+    .print-section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Allow page breaks between sections */
+    .print-section + .print-section {
+        break-before: auto;
+    }
+
+    /* Prevent items within lists from splitting */
+    .print-item {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* 2-col grid → stack vertically for print */
+    .print-stack {
+        display: block !important;
+    }
+    .print-stack > div {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+
+    /* Clean up visual noise for print */
+    .rounded-2xl { border-radius: 0.5rem !important; }
+    .shadow-sm { box-shadow: none !important; }
+    main { padding: 0 !important; max-width: 100% !important; }
+
+    /* Text flow */
+    p, li, span { orphans: 3; widows: 3; }
 }
 {% endblock %}
 
@@ -46,7 +82,7 @@
         </div>
 
         <!-- At-Risk Scorecard -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6 print-section">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">At-Risk Scorecard</h2>
             <div class="space-y-4">
                 {% for dimension in briefing.scorecard %}
@@ -77,11 +113,11 @@
         </div>
 
         <!-- Friction Points & Escalations -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6 print-section">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Friction Points & Escalations</h2>
             <div class="space-y-4">
                 {% for item in briefing.friction_points %}
-                <div class="border-l-4 pl-4 py-2
+                <div class="border-l-4 pl-4 py-2 print-item
                     {% if item.severity == 'critical' %}border-rose-500 bg-rose-50/50{% elif item.severity == 'warning' %}border-amber-400 bg-amber-50/50{% else %}border-slate-200{% endif %}
                     rounded-r-lg">
                     <div class="flex items-center space-x-2 mb-1">
@@ -105,9 +141,9 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-6 mb-6">
+        <div class="grid grid-cols-2 gap-6 mb-6 print-stack">
             <!-- Revenue Protection -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 print-section">
                 <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Revenue Protection</h2>
                 {% if briefing.revenue_at_risk %}
                 <div class="mb-4">
@@ -131,7 +167,7 @@
             </div>
 
             <!-- Internal Red Flags -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 print-section">
                 <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Internal Red Flags</h2>
                 <div class="space-y-3">
                     {% for flag in briefing.red_flags %}
@@ -150,11 +186,11 @@
         </div>
 
         <!-- Internal Action Directives -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-6 print-section">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Internal Action Directives</h2>
             <div class="space-y-3">
                 {% for action in briefing.action_directives %}
-                <div class="flex items-start space-x-4 p-4 bg-slate-50 rounded-xl">
+                <div class="flex items-start space-x-4 p-4 bg-slate-50 rounded-xl print-item">
                     <div class="w-7 h-7 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
                         <span class="text-xs font-bold text-slate-600">{{ loop.index }}</span>
                     </div>
