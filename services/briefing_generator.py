@@ -306,11 +306,13 @@ async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
         from services.salesforce_mcp import salesforce_client
 
         if not salesforce_client.is_connected:
-            logger.info(f"Salesforce not connected, using tracker fallback for {tool_name}")
+            logger.warning(f"[SF] Not connected — falling back to tracker for {tool_name}({tool_input})")
             return _tracker_fallback(tool_name, tool_input)
 
         account_name = tool_input.get("account_name", "")
         days = tool_input.get("days", 90)
+
+        logger.info(f"[SF] Calling {tool_name} for account='{account_name}' days={days}")
 
         if tool_name == "query_salesforce_cases":
             result = await salesforce_client.get_account_cases(account_name, days)
@@ -337,10 +339,14 @@ async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
         else:
             return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
-        return json.dumps(result, default=str)
+        result_json = json.dumps(result, default=str)
+        logger.info(f"[SF] {tool_name} returned {len(result)} records ({len(result_json)} bytes)")
+        if len(result) == 0:
+            logger.warning(f"[SF] {tool_name} returned EMPTY results for '{account_name}'")
+        return result_json
 
     except Exception as e:
-        logger.error(f"Salesforce tool error ({tool_name}): {e}")
+        logger.error(f"[SF] {tool_name} FAILED for {tool_input}: {type(e).__name__}: {e}", exc_info=True)
         # Fall back to tracker data on any Salesforce error
         return _tracker_fallback(tool_name, tool_input)
 
