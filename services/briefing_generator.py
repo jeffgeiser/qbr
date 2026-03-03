@@ -169,7 +169,7 @@ When you have enough data, output the briefing as a JSON block wrapped in ```jso
   ]
 }
 
-Be specific — reference actual case numbers, dollar amounts, and dates. If data is limited, still produce a meaningful assessment."""
+Be specific — reference actual case numbers, dollar amounts, and dates. If data is limited (e.g. tool results say "source: local_tracker"), still produce a meaningful assessment using whatever data is available. Do NOT tell the user that Salesforce is disconnected — just work with what you have."""
 
 CUSTOMER_SYSTEM = """You are an expert account strategist at Zenlayer, a global edge cloud and connectivity provider.
 
@@ -225,16 +225,89 @@ When you have enough data, output the briefing as a JSON block wrapped in ```jso
   ]
 }
 
-Frame problems as improvement opportunities. Highlight wins. Be specific with data."""
+Frame problems as improvement opportunities. Highlight wins. Be specific with data. If data is limited (e.g. tool results say "source: local_tracker"), still produce a meaningful review using whatever data is available. Do NOT tell the user that Salesforce is disconnected — just work with what you have."""
+
+
+def _get_tracker_account(account_name: str) -> dict | None:
+    """Look up an account in the local tracker DB by name (fuzzy match)."""
+    try:
+        from main import get_all_accounts
+        accounts = get_all_accounts()
+        name_lower = account_name.lower()
+        for account in accounts:
+            if account["name"].lower() == name_lower or name_lower in account["name"].lower():
+                return account
+        return None
+    except Exception as e:
+        logger.warning(f"Could not look up tracker account: {e}")
+        return None
+
+
+def _tracker_fallback(tool_name: str, tool_input: dict) -> str:
+    """Return local tracker data when Salesforce is not connected."""
+    account_name = tool_input.get("account_name", "")
+    account = _get_tracker_account(account_name)
+
+    if not account:
+        return json.dumps({
+            "source": "local_tracker",
+            "note": f"No account named '{account_name}' found in the tracker.",
+            "data": []
+        })
+
+    if tool_name == "query_salesforce_account":
+        return json.dumps({
+            "source": "local_tracker",
+            "data": [{
+                "Name": account["name"],
+                "Type": account["tier"],
+                "Owner": {"Name": account["owner"]},
+                "HealthSentiment": account["healthSentiment"],
+                "EngagementStage": account["engagementStage"],
+                "NextQbrDate": account["nextQbrDate"],
+                "QbrCompletion": account["qbrCompletion"],
+                "KeyLearnings": account["keyLearnings"],
+                "NextSteps": account["nextSteps"],
+                "LatestUpdate": account["latestUpdate"],
+            }]
+        })
+    elif tool_name == "query_salesforce_contacts":
+        return json.dumps({
+            "source": "local_tracker",
+            "data": account.get("contacts", [])
+        })
+    elif tool_name == "query_salesforce_activities":
+        # Synthesize activity-like data from action items and latest update
+        activities = []
+        for item in account.get("actionItems", []):
+            activities.append({
+                "Subject": item.get("text", "Action item"),
+                "Status": "Completed" if item.get("completed") else "Open",
+            })
+        if account.get("latestUpdate"):
+            activities.append({
+                "Subject": "Latest update",
+                "Description": account["latestUpdate"],
+                "Status": "Completed",
+            })
+        return json.dumps({"source": "local_tracker", "data": activities})
+    else:
+        # Cases and opportunities have no local equivalent
+        return json.dumps({
+            "source": "local_tracker",
+            "note": f"No {tool_name.replace('query_salesforce_', '')} data available without Salesforce. Use other available account data to inform the briefing.",
+            "data": []
+        })
 
 
 async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
-    """Execute a Salesforce tool call via the MCP client."""
+    """Execute a Salesforce tool call via the MCP client, falling back to local tracker data."""
     try:
         from services.salesforce_mcp import salesforce_client
 
         if not salesforce_client.is_connected:
-            return json.dumps({"error": "Salesforce not connected. No data available."})
+            logger.info(f"Salesforce not connected, using tracker fallback for {tool_name}")
+            return _tracker_fallback(tool_name, tool_input)
 
         account_name = tool_input.get("account_name", "")
         days = tool_input.get("days", 90)
@@ -268,7 +341,8 @@ async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
 
     except Exception as e:
         logger.error(f"Salesforce tool error ({tool_name}): {e}")
-        return json.dumps({"error": str(e)})
+        # Fall back to tracker data on any Salesforce error
+        return _tracker_fallback(tool_name, tool_input)
 
 
 async def generate_briefing_stream(
