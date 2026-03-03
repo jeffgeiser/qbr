@@ -99,7 +99,10 @@ class SalesforceMCPClient:
 
     async def _query(self, soql: str) -> list[dict]:
         """Execute a SOQL query and return results."""
-        return await self._call_tool("salesforce_query_records", {"query": soql})
+        logger.info(f"[SF SOQL] {soql}")
+        result = await self._call_tool("salesforce_query_records", {"query": soql})
+        logger.info(f"[SF SOQL] -> {len(result)} records returned")
+        return result
 
     # --- QBR-Specific Data Fetching Methods ---
 
