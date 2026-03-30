@@ -498,17 +498,25 @@ async def generate_briefing_stream(
 
                     result = await execute_salesforce_tool(tool_name, tool_input)
 
-                    # Count records for the frontend
+                    # Count records for the frontend — parse MCP text format
+                    count = None
                     try:
                         parsed = json.loads(result)
                         if isinstance(parsed, list):
-                            count = len(parsed)
+                            for item in parsed:
+                                if isinstance(item, dict) and "text" in item:
+                                    # MCP text format: "Query returned N records:\n..."
+                                    import re
+                                    m = re.search(r'returned (\d+) records', item["text"])
+                                    if m:
+                                        count = int(m.group(1))
+                                        break
+                            if count is None:
+                                count = len(parsed)
                         elif isinstance(parsed, dict) and "data" in parsed:
                             count = len(parsed["data"])
-                        else:
-                            count = None
                     except (json.JSONDecodeError, TypeError):
-                        count = None
+                        pass
 
                     done_msg = f"{tool_label} — {count} record{'s' if count != 1 else ''} found" if count is not None else f"{tool_label} — done"
                     yield _sse({"type": "tool_done", "message": done_msg})
