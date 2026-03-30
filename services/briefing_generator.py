@@ -485,26 +485,102 @@ async def generate_briefing_stream(
         yield _sse({"type": "error", "message": f"Generation failed: {str(e)}"})
 
 
+def _repair_json(json_str: str) -> str:
+    """Attempt to fix common JSON issues from LLM output."""
+    import re
+
+    s = json_str.strip()
+
+    # Remove trailing commas before } or ]
+    s = re.sub(r',\s*([}\]])', r'\1', s)
+
+    # Fix bare key:value pairs in arrays that should be objects
+    # e.g. "Key": value  ->  {"label": "Key", "score": value} when inside scorecard array
+    # More general: fix "key": value lines that aren't wrapped in {}
+    # This handles the specific Qwen issue: "Relationship Depth": 2 in an array of objects
+    def fix_bare_kv_in_array(match):
+        key = match.group(1)
+        value = match.group(2).strip().rstrip(',')
+        # Try to guess the object shape from context
+        try:
+            v = json.loads(value)
+            if isinstance(v, (int, float)):
+                return f'{{"label": "{key}", "score": {value}}}'
+            else:
+                return f'{{"label": "{key}", "value": {value}}}'
+        except (json.JSONDecodeError, ValueError):
+            return f'{{"label": "{key}", "value": {value}}}'
+
+    # Match array elements that are bare "key": value (not wrapped in {})
+    # Look for pattern: after [ or , followed by "key": value (not starting with {)
+    s = re.sub(
+        r'(?<=[\[,])\s*"([^"]+)"\s*:\s*([^,\]\{][^,\]]*)',
+        fix_bare_kv_in_array,
+        s
+    )
+
+    return s
+
+
 def _extract_briefing_json(text: str) -> dict | None:
-    """Try to extract a briefing JSON from Claude's response text."""
+    """Try to extract a briefing JSON from the model's response text."""
+    json_str = None
+
     if "```json" in text:
         try:
             json_str = text.split("```json")[1].split("```")[0]
-            return json.loads(json_str.strip())
-        except (json.JSONDecodeError, IndexError):
+        except IndexError:
             pass
     elif "```" in text:
         try:
             json_str = text.split("```")[1].split("```")[0]
-            return json.loads(json_str.strip())
-        except (json.JSONDecodeError, IndexError):
+        except IndexError:
             pass
 
-    # Try parsing the whole text as JSON
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError:
-        pass
+    candidates = []
+    if json_str:
+        candidates.append(json_str.strip())
+    candidates.append(text.strip())
+
+    for candidate in candidates:
+        # Try parsing as-is first
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # Try with repairs
+        try:
+            repaired = _repair_json(candidate)
+            result = json.loads(repaired)
+            if isinstance(result, dict):
+                logger.info("Briefing JSON parsed successfully after repair")
+                return result
+        except json.JSONDecodeError as e:
+            logger.debug(f"JSON repair attempt failed: {e}")
+
+    # Last resort: find the outermost { } block and try to parse that
+    brace_start = text.find('{')
+    if brace_start >= 0:
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    raw = text[brace_start:i + 1]
+                    for attempt in [raw, _repair_json(raw)]:
+                        try:
+                            result = json.loads(attempt)
+                            if isinstance(result, dict):
+                                logger.info("Briefing JSON extracted from brace matching")
+                                return result
+                        except json.JSONDecodeError:
+                            continue
+                    break
 
     return None
 
