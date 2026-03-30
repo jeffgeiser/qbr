@@ -97,11 +97,23 @@ class SalesforceMCPClient:
                 parsed.append({"value": str(item)})
         return parsed
 
-    async def _query(self, soql: str) -> list[dict]:
-        """Execute a SOQL query and return results."""
-        logger.info(f"[SF SOQL] {soql}")
-        result = await self._call_tool("salesforce_query_records", {"query": soql})
-        logger.info(f"[SF SOQL] -> {len(result)} records returned")
+    async def _query(self, object_name: str, fields: list[str],
+                     where: str = "", order_by: str = "", limit: int = 0) -> list[dict]:
+        """Execute a structured query via the MCP salesforce_query_records tool."""
+        args = {
+            "objectName": object_name,
+            "fields": fields,
+        }
+        if where:
+            args["whereClause"] = where
+        if order_by:
+            args["orderBy"] = order_by
+        if limit:
+            args["limit"] = limit
+
+        logger.info(f"[SF] Query {object_name} where={where}")
+        result = await self._call_tool("salesforce_query_records", args)
+        logger.info(f"[SF] -> {len(result)} records returned")
         return result
 
     # --- QBR-Specific Data Fetching Methods ---
@@ -109,74 +121,64 @@ class SalesforceMCPClient:
     async def get_account_cases(self, account_name: str, days: int = 90) -> list[dict]:
         """Fetch cases for an account within the given time range."""
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        soql = (
-            f"SELECT Id, CaseNumber, Subject, Status, Priority, CreatedDate, ClosedDate, "
-            f"Description, ContactId, Contact.Name "
-            f"FROM Case "
-            f"WHERE Account.Name = '{_escape(account_name)}' "
-            f"AND CreatedDate >= {since} "
-            f"ORDER BY CreatedDate DESC"
+        return await self._query(
+            "Case",
+            ["Id", "CaseNumber", "Subject", "Status", "Priority",
+             "CreatedDate", "ClosedDate", "Description", "ContactId", "Contact.Name"],
+            where=f"Account.Name = '{_escape(account_name)}' AND CreatedDate >= {since}",
+            order_by="CreatedDate DESC",
         )
-        return await self._query(soql)
 
     async def get_open_opportunities(self, account_name: str) -> list[dict]:
         """Fetch open opportunities for an account."""
-        soql = (
-            f"SELECT Id, Name, StageName, Amount, CloseDate, Probability, Description, "
-            f"Type, NextStep "
-            f"FROM Opportunity "
-            f"WHERE Account.Name = '{_escape(account_name)}' "
-            f"AND IsClosed = false "
-            f"ORDER BY Amount DESC"
+        return await self._query(
+            "Opportunity",
+            ["Id", "Name", "StageName", "Amount", "CloseDate", "Probability",
+             "Description", "Type", "NextStep"],
+            where=f"Account.Name = '{_escape(account_name)}' AND IsClosed = false",
+            order_by="Amount DESC",
         )
-        return await self._query(soql)
 
     async def get_closed_opportunities(self, account_name: str, days: int = 90) -> list[dict]:
         """Fetch recently closed (won/lost) opportunities."""
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        soql = (
-            f"SELECT Id, Name, StageName, Amount, CloseDate, IsWon, Description, Type "
-            f"FROM Opportunity "
-            f"WHERE Account.Name = '{_escape(account_name)}' "
-            f"AND IsClosed = true "
-            f"AND CloseDate >= {since[:10]} "
-            f"ORDER BY CloseDate DESC"
+        return await self._query(
+            "Opportunity",
+            ["Id", "Name", "StageName", "Amount", "CloseDate", "IsWon",
+             "Description", "Type"],
+            where=f"Account.Name = '{_escape(account_name)}' AND IsClosed = true AND CloseDate >= {since[:10]}",
+            order_by="CloseDate DESC",
         )
-        return await self._query(soql)
 
     async def get_contacts(self, account_name: str) -> list[dict]:
         """Fetch contacts for an account."""
-        soql = (
-            f"SELECT Id, Name, Email, Phone, Title, Department "
-            f"FROM Contact "
-            f"WHERE Account.Name = '{_escape(account_name)}' "
-            f"ORDER BY Name"
+        return await self._query(
+            "Contact",
+            ["Id", "Name", "Email", "Phone", "Title", "Department"],
+            where=f"Account.Name = '{_escape(account_name)}'",
+            order_by="Name",
         )
-        return await self._query(soql)
 
     async def get_activities(self, account_name: str, days: int = 90) -> list[dict]:
         """Fetch recent tasks/activities for an account."""
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        soql = (
-            f"SELECT Id, Subject, Status, ActivityDate, Priority, Description "
-            f"FROM Task "
-            f"WHERE Account.Name = '{_escape(account_name)}' "
-            f"AND CreatedDate >= {since} "
-            f"ORDER BY ActivityDate DESC "
-            f"LIMIT 50"
+        return await self._query(
+            "Task",
+            ["Id", "Subject", "Status", "ActivityDate", "Priority", "Description"],
+            where=f"Account.Name = '{_escape(account_name)}' AND CreatedDate >= {since}",
+            order_by="ActivityDate DESC",
+            limit=50,
         )
-        return await self._query(soql)
 
     async def get_account_info(self, account_name: str) -> list[dict]:
         """Fetch the Salesforce account record itself."""
-        soql = (
-            f"SELECT Id, Name, Type, Industry, AnnualRevenue, NumberOfEmployees, "
-            f"Description, OwnerId, Owner.Name "
-            f"FROM Account "
-            f"WHERE Name = '{_escape(account_name)}' "
-            f"LIMIT 1"
+        return await self._query(
+            "Account",
+            ["Id", "Name", "Type", "Industry", "AnnualRevenue", "NumberOfEmployees",
+             "Description", "OwnerId", "Owner.Name"],
+            where=f"Name = '{_escape(account_name)}'",
+            limit=1,
         )
-        return await self._query(soql)
 
     async def fetch_all_briefing_data(self, account_name: str, days: int = 90) -> dict:
         """
