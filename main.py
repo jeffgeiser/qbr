@@ -446,6 +446,31 @@ async def briefings_page(type: Optional[str] = None):
     )
 
 
+@app.get("/api/briefings/search-account")
+async def search_account(q: str = ""):
+    """Search Salesforce for accounts matching the query string."""
+    q = q.strip()
+    if not q:
+        return JSONResponse({"accounts": []})
+
+    try:
+        from services.salesforce_mcp import salesforce_client
+        if not salesforce_client.is_connected:
+            return JSONResponse({"accounts": [], "error": "Salesforce not connected"})
+
+        raw = await salesforce_client._query(
+            "Account", ["Name"],
+            where=f"Name LIKE '%{q}%'",
+            limit=10,
+        )
+        records = salesforce_client._parse_text_records(raw)
+        names = [r["Name"] for r in records if "Name" in r]
+        return JSONResponse({"accounts": names})
+    except Exception as e:
+        logger.error(f"Account search failed: {e}")
+        return JSONResponse({"accounts": [], "error": str(e)})
+
+
 @app.post("/api/briefings/generate")
 async def generate_briefing_endpoint(request: Request):
     """Streaming API endpoint. Claude orchestrates Salesforce tool calls and generates the briefing."""
