@@ -118,6 +118,21 @@ class SalesforceMCPClient:
 
     # --- Account Name Resolution ---
 
+    def _extract_field(self, results: list[dict], field: str) -> str | None:
+        """Extract a field value from MCP query results, handling nested structures."""
+        for r in results:
+            if not isinstance(r, dict):
+                continue
+            # Direct field access
+            if field in r:
+                return r[field]
+            # Nested in "records" array (common MCP response format)
+            if "records" in r and isinstance(r["records"], list):
+                for rec in r["records"]:
+                    if isinstance(rec, dict) and field in rec:
+                        return rec[field]
+        return None
+
     async def resolve_account_name(self, account_name: str) -> str:
         """Resolve a short/partial account name to the exact Salesforce account name.
         Tries exact match first, then LIKE match. Returns the best match."""
@@ -127,11 +142,11 @@ class SalesforceMCPClient:
             where=f"Name = '{_escape(account_name)}'",
             limit=1,
         )
-        if results:
-            for r in results:
-                if isinstance(r, dict) and "Name" in r:
-                    logger.info(f"[SF] Exact match for '{account_name}': {r['Name']}")
-                    return r["Name"]
+        logger.info(f"[SF] Exact match raw results for '{account_name}': {json.dumps(results, default=str)[:500]}")
+        name = self._extract_field(results, "Name")
+        if name:
+            logger.info(f"[SF] Exact match for '{account_name}': {name}")
+            return name
 
         # Fall back to LIKE search
         results = await self._query(
@@ -139,11 +154,11 @@ class SalesforceMCPClient:
             where=f"Name LIKE '%{_escape(account_name)}%'",
             limit=5,
         )
-        if results:
-            for r in results:
-                if isinstance(r, dict) and "Name" in r:
-                    logger.info(f"[SF] Fuzzy match for '{account_name}': {r['Name']}")
-                    return r["Name"]
+        logger.info(f"[SF] LIKE match raw results for '{account_name}': {json.dumps(results, default=str)[:500]}")
+        name = self._extract_field(results, "Name")
+        if name:
+            logger.info(f"[SF] Fuzzy match for '{account_name}': {name}")
+            return name
 
         logger.warning(f"[SF] No account found matching '{account_name}'")
         return account_name
