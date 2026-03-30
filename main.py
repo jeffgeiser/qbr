@@ -446,6 +446,55 @@ async def briefings_page(type: Optional[str] = None):
     )
 
 
+@app.post("/api/briefings/parse-input")
+async def parse_briefing_input(request: Request):
+    """Use the local LLM to extract account name and timeframe from natural language."""
+    body = await request.json()
+    user_input = body.get("input", "").strip()
+    if not user_input:
+        return JSONResponse({"account_name": "", "days": 90})
+
+    try:
+        from openai import AsyncOpenAI
+        llm_url = os.environ.get("LOCAL_LLM_URL", "http://10.1.0.251:18010/v1/")
+        llm_model = os.environ.get("LOCAL_LLM_MODEL", "Qwen/Qwen3.5-35B-A3B")
+        client = AsyncOpenAI(base_url=llm_url, api_key="not-needed")
+
+        response = await client.chat.completions.create(
+            model=llm_model,
+            max_tokens=100,
+            messages=[
+                {"role": "system", "content": (
+                    "Extract the customer/company name and timeframe from the user's request. "
+                    "Respond with ONLY a JSON object, no other text: "
+                    '{"account_name": "<company name>", "days": <number of days, default 90>}\n'
+                    "Examples:\n"
+                    '"analyze Zoom for last 30 days" -> {"account_name": "Zoom", "days": 30}\n'
+                    '"SpaceX quarterly review" -> {"account_name": "SpaceX", "days": 90}\n'
+                    '"briefing on Nvidia last 6 months" -> {"account_name": "Nvidia", "days": 180}'
+                )},
+                {"role": "user", "content": user_input},
+            ],
+        )
+
+        text = response.choices[0].message.content.strip()
+        # Extract JSON from response (handle markdown fences)
+        if "```" in text:
+            text = text.split("```")[1].split("```")[0]
+            if text.startswith("json"):
+                text = text[4:]
+        import json as json_mod
+        parsed = json_mod.loads(text.strip())
+        return JSONResponse({
+            "account_name": parsed.get("account_name", ""),
+            "days": parsed.get("days", 90),
+        })
+    except Exception as e:
+        logger.warning(f"LLM input parsing failed: {e}, falling back to raw input")
+        # Fallback: use the whole input as account name
+        return JSONResponse({"account_name": user_input, "days": 90})
+
+
 @app.get("/api/briefings/search-account")
 async def search_account(q: str = ""):
     """Search Salesforce for accounts matching the query string."""

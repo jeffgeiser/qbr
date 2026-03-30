@@ -254,7 +254,7 @@
             isStreaming: false,
             error: null,
             accountMatches: [],
-            pendingInput: null,
+            parsedDays: null,
 
             init() {
                 // If preselected type, focus the chat input
@@ -273,11 +273,8 @@
             selectAccount(accountName) {
                 // User picked an account from disambiguation list
                 this.accountMatches = [];
-                // Replace the user message with the exact account name + original context
-                const original = this.pendingInput;
-                // Try to preserve any timeframe from the original input
-                const timeMatch = original.match(/(?:last\s+)?\d+\s*(?:days?|months?|quarters?)/i);
-                const message = timeMatch ? `${accountName}, ${timeMatch[0]}` : accountName;
+                const days = this.parsedDays || 90;
+                const message = `${accountName}, last ${days} days`;
                 // Update the last user message
                 for (let i = this.messages.length - 1; i >= 0; i--) {
                     if (this.messages[i].role === 'user') {
@@ -300,21 +297,25 @@
                 this.messages.push({ role: 'user', content: input });
                 this.scrollToBottom();
 
-                // Extract account name — strip common phrases to get just the company name
-                let accountQuery = input
-                    .replace(/^(can you |please |generate |analyze |create |run |do |build |make |prepare )/i, '')
-                    .replace(/^(an? |the )?(internal |customer[ -]facing |executive )?(health brief|briefing|qbr|review|report|analysis|summary)( for| on| about)?/i, '')
-                    .replace(/[,.]?\s*(for |over |covering )?(the )?(last |past |previous )?\d+\s*(days?|months?|quarters?|weeks?).*$/i, '')
-                    .replace(/[,.]?\s*(last |past |previous )?(quarter|month|year|q[1-4]).*$/i, '')
-                    .replace(/[?.!,]$/g, '')
-                    .trim();
-
-                // If we stripped everything, fall back to first meaningful word(s)
-                if (!accountQuery) {
-                    accountQuery = input.split(',')[0].replace(/^(can you |please |generate |analyze |create )?(an? )?(internal |customer )?(briefing |qbr |report )?/i, '').trim();
+                // Use LLM to extract account name and timeframe from natural language
+                let accountQuery = input;
+                let parsedDays = null;
+                try {
+                    const parseResp = await fetch('/qbr/api/briefings/parse-input', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ input: input }),
+                    });
+                    const parseData = await parseResp.json();
+                    if (parseData.account_name) {
+                        accountQuery = parseData.account_name;
+                        parsedDays = parseData.days;
+                    }
+                } catch (e) {
+                    console.warn('Input parsing failed, using raw input:', e);
                 }
 
-                // Search for matching accounts first
+                // Search for matching accounts
                 try {
                     const searchResp = await fetch(`/qbr/api/briefings/search-account?q=${encodeURIComponent(accountQuery)}`);
                     const searchData = await searchResp.json();
@@ -322,7 +323,7 @@
                     if (searchData.accounts && searchData.accounts.length > 1) {
                         // Multiple matches — let user pick
                         this.accountMatches = searchData.accounts;
-                        this.pendingInput = input;
+                        this.parsedDays = parsedDays;
                         this.messages.push({
                             role: 'assistant',
                             content: `I found ${searchData.accounts.length} accounts matching "${accountQuery}". Please select the correct one:`,
@@ -333,9 +334,8 @@
                         // Exact single match — use it
                         const exact = searchData.accounts[0];
                         if (exact.toLowerCase() !== accountQuery.toLowerCase()) {
-                            // Replace account name in the input
-                            const timeMatch = input.match(/(?:last\s+)?\d+\s*(?:days?|months?|quarters?)/i);
-                            const message = timeMatch ? `${exact}, ${timeMatch[0]}` : exact;
+                            const days = parsedDays || 90;
+                            const message = `${exact}, last ${days} days`;
                             for (let i = this.messages.length - 1; i >= 0; i--) {
                                 if (this.messages[i].role === 'user') {
                                     this.messages[i].content = message;
