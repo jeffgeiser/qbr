@@ -300,8 +300,19 @@
                 this.messages.push({ role: 'user', content: input });
                 this.scrollToBottom();
 
-                // Extract account name (everything before comma or the whole input)
-                const accountQuery = input.split(',')[0].trim();
+                // Extract account name — strip common phrases to get just the company name
+                let accountQuery = input
+                    .replace(/^(can you |please |generate |analyze |create |run |do |build |make |prepare )/i, '')
+                    .replace(/^(an? |the )?(internal |customer[ -]facing |executive )?(health brief|briefing|qbr|review|report|analysis|summary)( for| on| about)?/i, '')
+                    .replace(/[,.]?\s*(for |over |covering )?(the )?(last |past |previous )?\d+\s*(days?|months?|quarters?|weeks?).*$/i, '')
+                    .replace(/[,.]?\s*(last |past |previous )?(quarter|month|year|q[1-4]).*$/i, '')
+                    .replace(/[?.!,]$/g, '')
+                    .trim();
+
+                // If we stripped everything, fall back to first meaningful word(s)
+                if (!accountQuery) {
+                    accountQuery = input.split(',')[0].replace(/^(can you |please |generate |analyze |create )?(an? )?(internal |customer )?(briefing |qbr |report )?/i, '').trim();
+                }
 
                 // Search for matching accounts first
                 try {

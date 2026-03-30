@@ -454,13 +454,13 @@ async def search_account(q: str = ""):
         return JSONResponse({"accounts": []})
 
     try:
-        from services.salesforce_mcp import salesforce_client
+        from services.salesforce_mcp import salesforce_client, _escape
         if not salesforce_client.is_connected:
             return JSONResponse({"accounts": [], "error": "Salesforce not connected"})
 
         raw = await salesforce_client._query(
             "Account", ["Name"],
-            where=f"Name LIKE '%{q}%'",
+            where=f"Name LIKE '%{_escape(q)}%'",
             limit=10,
         )
         records = salesforce_client._parse_text_records(raw)
