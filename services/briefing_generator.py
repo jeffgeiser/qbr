@@ -316,6 +316,40 @@ def _tracker_fallback(tool_name: str, tool_input: dict) -> str:
         })
 
 
+# Cache resolved account names to avoid repeated lookups within a session
+_resolved_names: dict[str, str] = {}
+
+
+async def _resolve_account(account_name: str) -> str:
+    """Resolve a partial account name to the exact Salesforce name, with caching."""
+    if account_name in _resolved_names:
+        return _resolved_names[account_name]
+    try:
+        from services.salesforce_mcp import salesforce_client
+        if salesforce_client.is_connected:
+            resolved = await salesforce_client.resolve_account_name(account_name)
+            _resolved_names[account_name] = resolved
+            return resolved
+    except Exception as e:
+        logger.warning(f"Account name resolution failed: {e}")
+    return account_name
+
+
+def _truncate_result(result_json: str, max_bytes: int = 8000) -> str:
+    """Truncate large tool results to stay within the model's context window."""
+    if len(result_json) <= max_bytes:
+        return result_json
+    try:
+        data = json.loads(result_json)
+        if isinstance(data, list) and len(data) > 5:
+            truncated = data[:5]
+            truncated.append({"_note": f"Truncated: showing 5 of {len(data)} records"})
+            return json.dumps(truncated, default=str)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return result_json[:max_bytes] + '..."}'
+
+
 async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
     """Execute a Salesforce tool call via the MCP client, falling back to local tracker data."""
     try:
@@ -327,6 +361,9 @@ async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
 
         account_name = tool_input.get("account_name", "")
         days = tool_input.get("days", 90)
+
+        # Resolve partial account names to exact Salesforce names
+        account_name = await _resolve_account(account_name)
 
         logger.info(f"[SF] Calling {tool_name} for account='{account_name}' days={days}")
 
@@ -359,7 +396,7 @@ async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
         logger.info(f"[SF] {tool_name} returned {len(result)} records ({len(result_json)} bytes)")
         if len(result) == 0:
             logger.warning(f"[SF] {tool_name} returned EMPTY results for '{account_name}'")
-        return result_json
+        return _truncate_result(result_json)
 
     except Exception as e:
         logger.error(f"[SF] {tool_name} FAILED for {tool_input}: {type(e).__name__}: {e}", exc_info=True)

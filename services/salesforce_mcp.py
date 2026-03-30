@@ -116,6 +116,38 @@ class SalesforceMCPClient:
         logger.info(f"[SF] -> {len(result)} records returned")
         return result
 
+    # --- Account Name Resolution ---
+
+    async def resolve_account_name(self, account_name: str) -> str:
+        """Resolve a short/partial account name to the exact Salesforce account name.
+        Tries exact match first, then LIKE match. Returns the best match."""
+        # Try exact match first
+        results = await self._query(
+            "Account", ["Name"],
+            where=f"Name = '{_escape(account_name)}'",
+            limit=1,
+        )
+        if results:
+            for r in results:
+                if isinstance(r, dict) and "Name" in r:
+                    logger.info(f"[SF] Exact match for '{account_name}': {r['Name']}")
+                    return r["Name"]
+
+        # Fall back to LIKE search
+        results = await self._query(
+            "Account", ["Name"],
+            where=f"Name LIKE '%{_escape(account_name)}%'",
+            limit=5,
+        )
+        if results:
+            for r in results:
+                if isinstance(r, dict) and "Name" in r:
+                    logger.info(f"[SF] Fuzzy match for '{account_name}': {r['Name']}")
+                    return r["Name"]
+
+        logger.warning(f"[SF] No account found matching '{account_name}'")
+        return account_name
+
     # --- QBR-Specific Data Fetching Methods ---
 
     async def get_account_cases(self, account_name: str, days: int = 90) -> list[dict]:
