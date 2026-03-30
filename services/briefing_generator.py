@@ -461,7 +461,20 @@ async def generate_briefing_stream(
 
                     result = await execute_salesforce_tool(tool_name, tool_input)
 
-                    yield _sse({"type": "tool_done", "message": f"{tool_label} - done"})
+                    # Count records for the frontend
+                    try:
+                        parsed = json.loads(result)
+                        if isinstance(parsed, list):
+                            count = len(parsed)
+                        elif isinstance(parsed, dict) and "data" in parsed:
+                            count = len(parsed["data"])
+                        else:
+                            count = None
+                    except (json.JSONDecodeError, TypeError):
+                        count = None
+
+                    done_msg = f"{tool_label} — {count} record{'s' if count != 1 else ''} found" if count is not None else f"{tool_label} — done"
+                    yield _sse({"type": "tool_done", "message": done_msg})
 
                     messages.append({
                         "role": "tool",
