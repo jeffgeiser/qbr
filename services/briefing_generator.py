@@ -134,58 +134,105 @@ SALESFORCE_TOOLS = [
 
 INTERNAL_SYSTEM = """You are an expert account strategist at Zenlayer, a global edge cloud and connectivity provider.
 
-You are helping generate an INTERNAL Executive Health Brief for leadership. This document is CONFIDENTIAL and should be brutally candid, risk-focused, action-oriented, and data-driven.
+You are helping generate an INTERNAL Executive Health Brief for leadership. This document is CONFIDENTIAL and should be candid, evidence-based, and action-oriented. Lead with the narrative, support with data.
 
 IMPORTANT: You MUST call the Salesforce tools to gather real data. Do NOT describe what you would do — actually call the tools. Start by calling multiple tools in parallel (account info, cases, opportunities, contacts, activities).
 
 Your workflow:
 1. IMMEDIATELY call the Salesforce tools to gather data about the customer account — do not ask for confirmation
-2. Analyze the data for risks, friction points, and revenue exposure
-3. Generate a structured briefing
+2. Analyze the data across all dimensions
+3. Generate a structured briefing following the pyramid principle: conclusion first, then evidence
 
 When you have enough data, output the briefing as a JSON block wrapped in ```json``` fences with this EXACT structure:
 {
-  "scorecard": [
-    {"label": "Business Outlook", "score": <1-5>},
-    {"label": "Support Health", "score": <1-5>},
-    {"label": "Engagement Cadence", "score": <1-5>},
-    {"label": "Pipeline Momentum", "score": <1-5>},
-    {"label": "Relationship Depth", "score": <1-5>}
-  ],
-  "overall_assessment": "<1-2 sentence overall health assessment>",
-  "friction_points": [
+  "executive_snapshot": "<2-4 sentence narrative assessment. A VP should be able to read just this and understand the account situation. Be specific — reference dollar amounts, trends, and timeframes.>",
+  "revenue_picture": {
+    "summary": "<1 sentence revenue overview>",
+    "closed_won": [
+      {
+        "name": "<deal name>",
+        "amount": "<formatted amount like $50K>",
+        "close_date": "<date or timeframe>",
+        "detail": "<brief context>"
+      }
+    ],
+    "closed_lost": [
+      {
+        "name": "<deal name>",
+        "amount": "<formatted amount>",
+        "close_date": "<date>",
+        "detail": "<why it was lost if known>"
+      }
+    ],
+    "active_pipeline": [
+      {
+        "name": "<opportunity name>",
+        "amount": "<formatted amount>",
+        "stage": "<current stage>",
+        "probability": "<percentage or null>",
+        "detail": "<context>"
+      }
+    ],
+    "total_pipeline_value": "<formatted total like $1.2M>",
+    "revenue_at_risk": "<formatted amount or null>"
+  },
+  "engagement_activity": {
+    "summary": "<1-2 sentence engagement overview>",
+    "support_tickets": {
+      "open_count": <number>,
+      "closed_count": <number>,
+      "critical_tickets": [
+        {
+          "case_number": "<case #>",
+          "subject": "<subject>",
+          "status": "<status>",
+          "priority": "<priority>",
+          "age_days": "<days open or null>"
+        }
+      ],
+      "trend": "<improving|stable|degrading|no data>"
+    },
+    "recent_interactions": [
+      {
+        "date": "<date or timeframe>",
+        "type": "<meeting|email|call|task>",
+        "summary": "<brief description>"
+      }
+    ],
+    "key_contacts": [
+      {
+        "name": "<contact name>",
+        "title": "<title>",
+        "engagement_level": "<active|passive|disengaged|unknown>"
+      }
+    ]
+  },
+  "strategic_risks": [
     {
       "severity": "critical|warning|info",
       "title": "<short title>",
-      "description": "<detailed description>",
-      "evidence": ["<specific case/data reference>"]
+      "description": "<detailed description with specific evidence>",
+      "evidence": ["<specific data point>"]
     }
   ],
-  "revenue_at_risk_total": "<formatted amount like 220K+>",
-  "revenue_items": [
+  "recommended_actions": [
     {
-      "name": "<deal name>",
-      "amount": "<formatted amount>",
-      "status": "at_risk|won|lost|open",
-      "detail": "<why it's notable>"
+      "priority": "urgent|high|normal",
+      "action": "<what needs to happen>",
+      "rationale": "<why this matters>",
+      "owner_suggestion": "<suggested owner or team>"
     }
   ],
-  "red_flags": [
-    {
-      "title": "<flag title>",
-      "description": "<what's wrong>"
-    }
-  ],
-  "action_directives": [
-    {
-      "directive": "<what needs to happen>",
-      "detail": "<additional context>",
-      "priority": "urgent|high|normal"
-    }
+  "health_scorecard": [
+    {"label": "Revenue Health", "score": <1-5>, "detail": "<1 sentence why>"},
+    {"label": "Support Health", "score": <1-5>, "detail": "<1 sentence why>"},
+    {"label": "Engagement Depth", "score": <1-5>, "detail": "<1 sentence why>"},
+    {"label": "Pipeline Momentum", "score": <1-5>, "detail": "<1 sentence why>"},
+    {"label": "Relationship Strength", "score": <1-5>, "detail": "<1 sentence why>"}
   ]
 }
 
-Be specific — reference actual case numbers, dollar amounts, and dates. If data is limited (e.g. tool results say "source: local_tracker"), still produce a meaningful assessment using whatever data is available. Do NOT tell the user that Salesforce is disconnected — just work with what you have."""
+Be specific — reference actual case numbers, dollar amounts, contact names, and dates. If data is limited (e.g. tool results say "source: local_tracker"), still produce a meaningful assessment using whatever data is available. Do NOT tell the user that Salesforce is disconnected — just work with what you have."""
 
 CUSTOMER_SYSTEM = """You are an expert account strategist at Zenlayer, a global edge cloud and connectivity provider.
 
@@ -498,17 +545,25 @@ async def generate_briefing_stream(
 
                     result = await execute_salesforce_tool(tool_name, tool_input)
 
-                    # Count records for the frontend
+                    # Count records for the frontend — parse MCP text format
+                    count = None
                     try:
                         parsed = json.loads(result)
                         if isinstance(parsed, list):
-                            count = len(parsed)
+                            for item in parsed:
+                                if isinstance(item, dict) and "text" in item:
+                                    # MCP text format: "Query returned N records:\n..."
+                                    import re
+                                    m = re.search(r'returned (\d+) records', item["text"])
+                                    if m:
+                                        count = int(m.group(1))
+                                        break
+                            if count is None:
+                                count = len(parsed)
                         elif isinstance(parsed, dict) and "data" in parsed:
                             count = len(parsed["data"])
-                        else:
-                            count = None
                     except (json.JSONDecodeError, TypeError):
-                        count = None
+                        pass
 
                     done_msg = f"{tool_label} — {count} record{'s' if count != 1 else ''} found" if count is not None else f"{tool_label} — done"
                     yield _sse({"type": "tool_done", "message": done_msg})
