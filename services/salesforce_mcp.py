@@ -118,47 +118,68 @@ class SalesforceMCPClient:
 
     # --- Account Name Resolution ---
 
-    def _extract_field(self, results: list[dict], field: str) -> str | None:
-        """Extract a field value from MCP query results, handling nested structures."""
+    @staticmethod
+    def _parse_text_records(results: list[dict]) -> list[dict]:
+        """Parse the MCP text response format into structured records.
+        MCP returns: {"text": "Query returned N records:\\n\\nRecord 1:\\n    Name: Foo\\n    Field: Bar\\n\\nRecord 2:\\n..."}
+        """
+        import re
+        records = []
         for r in results:
             if not isinstance(r, dict):
                 continue
-            # Direct field access
-            if field in r:
-                return r[field]
-            # Nested in "records" array (common MCP response format)
-            if "records" in r and isinstance(r["records"], list):
-                for rec in r["records"]:
-                    if isinstance(rec, dict) and field in rec:
-                        return rec[field]
-        return None
+            # If it's already structured (has keys other than "text"), use it directly
+            if "text" not in r or len(r) > 1:
+                records.append(r)
+                continue
+            # Parse the text format
+            text = r.get("text", "")
+            # Split on "Record N:" boundaries
+            record_blocks = re.split(r'Record \d+:', text)
+            for block in record_blocks[1:]:  # skip the header "Query returned N records"
+                record = {}
+                for line in block.strip().split('\n'):
+                    line = line.strip()
+                    if ':' in line:
+                        key, _, value = line.partition(':')
+                        record[key.strip()] = value.strip()
+                if record:
+                    records.append(record)
+        return records
 
     async def resolve_account_name(self, account_name: str) -> str:
         """Resolve a short/partial account name to the exact Salesforce account name.
         Tries exact match first, then LIKE match. Returns the best match."""
         # Try exact match first
-        results = await self._query(
+        raw = await self._query(
             "Account", ["Name"],
             where=f"Name = '{_escape(account_name)}'",
             limit=1,
         )
-        logger.info(f"[SF] Exact match raw results for '{account_name}': {json.dumps(results, default=str)[:500]}")
-        name = self._extract_field(results, "Name")
-        if name:
+        records = self._parse_text_records(raw)
+        if records and "Name" in records[0]:
+            name = records[0]["Name"]
             logger.info(f"[SF] Exact match for '{account_name}': {name}")
             return name
 
-        # Fall back to LIKE search
-        results = await self._query(
+        # Fall back to LIKE search — pick the best match
+        raw = await self._query(
             "Account", ["Name"],
             where=f"Name LIKE '%{_escape(account_name)}%'",
-            limit=5,
+            limit=10,
         )
-        logger.info(f"[SF] LIKE match raw results for '{account_name}': {json.dumps(results, default=str)[:500]}")
-        name = self._extract_field(results, "Name")
-        if name:
-            logger.info(f"[SF] Fuzzy match for '{account_name}': {name}")
-            return name
+        records = self._parse_text_records(raw)
+        if records:
+            names = [r["Name"] for r in records if "Name" in r]
+            logger.info(f"[SF] LIKE matches for '{account_name}': {names}")
+            # Prefer names that start with the search term
+            for n in names:
+                if n.lower().startswith(account_name.lower()):
+                    logger.info(f"[SF] Best match for '{account_name}': {n}")
+                    return n
+            # Otherwise return the first match
+            logger.info(f"[SF] Using first match for '{account_name}': {names[0]}")
+            return names[0]
 
         logger.warning(f"[SF] No account found matching '{account_name}'")
         return account_name
