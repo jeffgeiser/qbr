@@ -171,6 +171,18 @@
                         </div>
                     </template>
 
+                    <!-- Account Disambiguation -->
+                    <div x-show="accountMatches.length > 0" x-cloak class="flex items-start space-x-3 pl-11">
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="(name, i) in accountMatches" :key="i">
+                                <button @click="selectAccount(name)"
+                                        class="px-3 py-2 text-sm font-medium bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-slate-700 hover:text-blue-700"
+                                        x-text="name">
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
                     <!-- Typing Indicator -->
                     <div x-show="isGenerating && !isStreaming" x-cloak class="flex items-start space-x-3">
                         <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -241,6 +253,8 @@
             isGenerating: false,
             isStreaming: false,
             error: null,
+            accountMatches: [],
+            pendingInput: null,
 
             init() {
                 // If preselected type, focus the chat input
@@ -256,17 +270,80 @@
                 });
             },
 
+            selectAccount(accountName) {
+                // User picked an account from disambiguation list
+                this.accountMatches = [];
+                // Replace the user message with the exact account name + original context
+                const original = this.pendingInput;
+                // Try to preserve any timeframe from the original input
+                const timeMatch = original.match(/(?:last\s+)?\d+\s*(?:days?|months?|quarters?)/i);
+                const message = timeMatch ? `${accountName}, ${timeMatch[0]}` : accountName;
+                // Update the last user message
+                for (let i = this.messages.length - 1; i >= 0; i--) {
+                    if (this.messages[i].role === 'user') {
+                        this.messages[i].content = message;
+                        break;
+                    }
+                }
+                this.startGeneration(message);
+            },
+
             async sendMessage() {
                 const input = this.chatInput.trim();
                 if (!input || this.isGenerating) return;
 
                 this.chatInput = '';
                 this.error = null;
+                this.accountMatches = [];
 
                 // Add user message
                 this.messages.push({ role: 'user', content: input });
                 this.scrollToBottom();
 
+                // Extract account name (everything before comma or the whole input)
+                const accountQuery = input.split(',')[0].trim();
+
+                // Search for matching accounts first
+                try {
+                    const searchResp = await fetch(`/qbr/api/briefings/search-account?q=${encodeURIComponent(accountQuery)}`);
+                    const searchData = await searchResp.json();
+
+                    if (searchData.accounts && searchData.accounts.length > 1) {
+                        // Multiple matches — let user pick
+                        this.accountMatches = searchData.accounts;
+                        this.pendingInput = input;
+                        this.messages.push({
+                            role: 'assistant',
+                            content: `I found ${searchData.accounts.length} accounts matching "${accountQuery}". Please select the correct one:`,
+                        });
+                        this.scrollToBottom();
+                        return;
+                    } else if (searchData.accounts && searchData.accounts.length === 1) {
+                        // Exact single match — use it
+                        const exact = searchData.accounts[0];
+                        if (exact.toLowerCase() !== accountQuery.toLowerCase()) {
+                            // Replace account name in the input
+                            const timeMatch = input.match(/(?:last\s+)?\d+\s*(?:days?|months?|quarters?)/i);
+                            const message = timeMatch ? `${exact}, ${timeMatch[0]}` : exact;
+                            for (let i = this.messages.length - 1; i >= 0; i--) {
+                                if (this.messages[i].role === 'user') {
+                                    this.messages[i].content = message;
+                                    break;
+                                }
+                            }
+                            this.startGeneration(message);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // Search failed — proceed with original input
+                    console.warn('Account search failed:', e);
+                }
+
+                this.startGeneration(input);
+            },
+
+            async startGeneration(input) {
                 this.isGenerating = true;
 
                 try {
