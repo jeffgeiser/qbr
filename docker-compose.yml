@@ -9,8 +9,9 @@ services:
       - qbr-data:/app/data
     environment:
       - DB_PATH=/app/data/accounts.db
-      # Anthropic API key for briefing generation (required for briefings)
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Local LLM server for briefing generation
+      - LOCAL_LLM_URL=${LOCAL_LLM_URL:-http://10.1.0.251:18010/v1/}
+      - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-Qwen/Qwen3.5-35B-A3B}
       # Salesforce MCP credentials (optional - briefings work without, using tracker data only)
       - SALESFORCE_CONNECTION_TYPE=${SALESFORCE_CONNECTION_TYPE:-OAuth_2.0_Client_Credentials}
       - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}

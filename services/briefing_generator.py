@@ -1,9 +1,10 @@
 """
 Briefing Generator Service
 
-Uses Claude AI with tool-use to orchestrate Salesforce queries and generate
-structured briefing documents. Claude decides which queries to run based on
-the user's request, calls the Salesforce MCP tools, and synthesizes results.
+Uses a local LLM (OpenAI-compatible API) with tool-use to orchestrate
+Salesforce queries and generate structured briefing documents. The model
+decides which queries to run based on the user's request, calls the
+Salesforce MCP tools, and synthesizes results.
 """
 
 import os
@@ -12,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import AsyncGenerator
 
-import anthropic
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -21,94 +22,109 @@ logger = logging.getLogger(__name__)
 
 SALESFORCE_TOOLS = [
     {
-        "name": "query_salesforce_cases",
-        "description": "Query Salesforce cases (support tickets) for a customer account. Returns case number, subject, status, priority, created/closed dates, and descriptions.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "account_name": {
-                    "type": "string",
-                    "description": "The customer account name to search for in Salesforce"
+        "type": "function",
+        "function": {
+            "name": "query_salesforce_cases",
+            "description": "Query Salesforce cases (support tickets) for a customer account. Returns case number, subject, status, priority, created/closed dates, and descriptions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The customer account name to search for in Salesforce"
+                    },
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back from today. Default 90.",
+                        "default": 90
+                    }
                 },
-                "days": {
-                    "type": "integer",
-                    "description": "Number of days to look back from today. Default 90.",
-                    "default": 90
-                }
-            },
-            "required": ["account_name"]
+                "required": ["account_name"]
+            }
         }
     },
     {
-        "name": "query_salesforce_opportunities",
-        "description": "Query Salesforce opportunities (deals/pipeline) for a customer account. Can filter by open, won, or lost. Returns opportunity name, stage, amount, close date, probability, and description.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "account_name": {
-                    "type": "string",
-                    "description": "The customer account name"
+        "type": "function",
+        "function": {
+            "name": "query_salesforce_opportunities",
+            "description": "Query Salesforce opportunities (deals/pipeline) for a customer account. Can filter by open, won, or lost. Returns opportunity name, stage, amount, close date, probability, and description.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The customer account name"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["open", "won", "lost", "all"],
+                        "description": "Filter by opportunity status. 'open' = not yet closed, 'won' = closed-won, 'lost' = closed-lost, 'all' = everything.",
+                        "default": "all"
+                    },
+                    "days": {
+                        "type": "integer",
+                        "description": "For won/lost opportunities, how many days back to look. Default 90.",
+                        "default": 90
+                    }
                 },
-                "status": {
-                    "type": "string",
-                    "enum": ["open", "won", "lost", "all"],
-                    "description": "Filter by opportunity status. 'open' = not yet closed, 'won' = closed-won, 'lost' = closed-lost, 'all' = everything.",
-                    "default": "all"
-                },
-                "days": {
-                    "type": "integer",
-                    "description": "For won/lost opportunities, how many days back to look. Default 90.",
-                    "default": 90
-                }
-            },
-            "required": ["account_name"]
+                "required": ["account_name"]
+            }
         }
     },
     {
-        "name": "query_salesforce_contacts",
-        "description": "Query Salesforce contacts for a customer account. Returns name, email, phone, title, and department.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "account_name": {
-                    "type": "string",
-                    "description": "The customer account name"
-                }
-            },
-            "required": ["account_name"]
-        }
-    },
-    {
-        "name": "query_salesforce_activities",
-        "description": "Query Salesforce tasks/activities for a customer account. Returns subject, status, date, priority, and description of recent interactions.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "account_name": {
-                    "type": "string",
-                    "description": "The customer account name"
+        "type": "function",
+        "function": {
+            "name": "query_salesforce_contacts",
+            "description": "Query Salesforce contacts for a customer account. Returns name, email, phone, title, and department.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The customer account name"
+                    }
                 },
-                "days": {
-                    "type": "integer",
-                    "description": "Number of days to look back. Default 90.",
-                    "default": 90
-                }
-            },
-            "required": ["account_name"]
+                "required": ["account_name"]
+            }
         }
     },
     {
-        "name": "query_salesforce_account",
-        "description": "Query the Salesforce account record itself. Returns account name, type, industry, annual revenue, owner, and description.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "account_name": {
-                    "type": "string",
-                    "description": "The customer account name"
-                }
-            },
-            "required": ["account_name"]
+        "type": "function",
+        "function": {
+            "name": "query_salesforce_activities",
+            "description": "Query Salesforce tasks/activities for a customer account. Returns subject, status, date, priority, and description of recent interactions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The customer account name"
+                    },
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back. Default 90.",
+                        "default": 90
+                    }
+                },
+                "required": ["account_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_salesforce_account",
+            "description": "Query the Salesforce account record itself. Returns account name, type, industry, annual revenue, owner, and description.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The customer account name"
+                    }
+                },
+                "required": ["account_name"]
+            }
         }
     },
 ]
@@ -356,118 +372,114 @@ async def generate_briefing_stream(
     user_message: str,
 ) -> AsyncGenerator[str, None]:
     """
-    Stream briefing generation using Claude with tool use.
+    Stream briefing generation using a local LLM (OpenAI-compatible API) with tool use.
 
     Yields Server-Sent Events (SSE) with these event types:
-    - tool_start: Claude is calling a Salesforce tool
+    - tool_start: Model is calling a Salesforce tool
     - tool_done: Tool call completed
-    - assistant_message: Claude has a text message
+    - assistant_message: Model has a text message
     - briefing_ready: Final briefing JSON is ready
     - error: Something went wrong
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        yield _sse({"type": "error", "message": "ANTHROPIC_API_KEY not configured"})
-        return
+    llm_url = os.environ.get("LOCAL_LLM_URL", "http://10.1.0.251:18010/v1/")
+    llm_model = os.environ.get("LOCAL_LLM_MODEL", "Qwen/Qwen3.5-35B-A3B")
 
     # Send an immediate heartbeat so the SSE connection stays alive
     yield _sse({"type": "status", "message": "Starting briefing generation..."})
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
+        client = AsyncOpenAI(base_url=llm_url, api_key="not-needed")
 
         system = INTERNAL_SYSTEM if briefing_type == "internal" else CUSTOMER_SYSTEM
-        messages = [{"role": "user", "content": user_message}]
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_message},
+        ]
 
-        # Agentic loop — Claude calls tools, we execute them, feed results back
+        # Agentic loop — model calls tools, we execute them, feed results back
         max_iterations = 10
         for iteration in range(max_iterations):
             logger.info(f"Briefing generation iteration {iteration + 1}")
 
-            # Force tool use on the first iteration so Claude gathers data
-            # instead of just describing what it would do
             api_kwargs = dict(
-                model="claude-haiku-4-5-20251001",
+                model=llm_model,
                 max_tokens=4096,
-                system=system,
                 tools=SALESFORCE_TOOLS,
                 messages=messages,
             )
+            # Force tool use on the first iteration so the model gathers data
             if iteration == 0:
-                api_kwargs["tool_choice"] = {"type": "any"}
+                api_kwargs["tool_choice"] = "required"
 
-            response = await client.messages.create(**api_kwargs)
+            response = await client.chat.completions.create(**api_kwargs)
 
-            # Process response content blocks and collect tool results
+            choice = response.choices[0]
+            message = choice.message
+
+            # Process response and collect tool results
             has_tool_use = False
-            tool_results = []
             briefing_found = False
 
-            for block in response.content:
-                if block.type == "text":
-                    # Check if this text contains the final briefing JSON
-                    briefing_json = _extract_briefing_json(block.text)
-                    if briefing_json:
-                        # Save and signal completion
-                        from main import save_briefing_result
-                        import uuid
+            # Check text content for briefing JSON
+            if message.content:
+                briefing_json = _extract_briefing_json(message.content)
+                if briefing_json:
+                    from main import save_briefing_result
+                    import uuid
 
-                        account_id = _find_account_id(briefing_json, user_message)
-                        result_id = str(uuid.uuid4())
-                        save_briefing_result(
-                            result_id, account_id, briefing_type, 90, briefing_json
-                        )
+                    account_id = _find_account_id(briefing_json, user_message)
+                    result_id = str(uuid.uuid4())
+                    save_briefing_result(
+                        result_id, account_id, briefing_type, 90, briefing_json
+                    )
 
-                        yield _sse({
-                            "type": "briefing_ready",
-                            "result_id": result_id,
-                            "account_id": account_id,
-                        })
-                        briefing_found = True
-                        break
-                    else:
-                        yield _sse({"type": "assistant_message", "message": block.text})
-
-                elif block.type == "tool_use":
-                    has_tool_use = True
-
-                    # Signal tool start
-                    tool_label = _tool_display_name(block.name, block.input)
-                    yield _sse({"type": "tool_start", "message": tool_label})
-
-                    # Execute the tool
-                    result = await execute_salesforce_tool(block.name, block.input)
-
-                    yield _sse({"type": "tool_done", "message": f"{tool_label} - done"})
-
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
+                    yield _sse({
+                        "type": "briefing_ready",
+                        "result_id": result_id,
+                        "account_id": account_id,
                     })
+                    briefing_found = True
+                else:
+                    yield _sse({"type": "assistant_message", "message": message.content})
 
             if briefing_found:
                 return
 
-            # Add assistant message to conversation
-            messages.append({"role": "assistant", "content": response.content})
+            # Process tool calls
+            if message.tool_calls:
+                has_tool_use = True
 
-            # If there were tool calls, add tool results
-            if has_tool_use:
-                messages.append({"role": "user", "content": tool_results})
+                # Add assistant message (with tool_calls) to conversation
+                messages.append(message)
+
+                for tool_call in message.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_input = json.loads(tool_call.function.arguments)
+
+                    tool_label = _tool_display_name(tool_name, tool_input)
+                    yield _sse({"type": "tool_start", "message": tool_label})
+
+                    result = await execute_salesforce_tool(tool_name, tool_input)
+
+                    yield _sse({"type": "tool_done", "message": f"{tool_label} - done"})
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result,
+                    })
             else:
-                # No tool use and no briefing JSON found — we're done
+                # No tool calls — add message to conversation and stop
+                messages.append(message)
                 break
 
-            # Stop if Claude signals end of turn
-            if response.stop_reason == "end_turn" and not has_tool_use:
+            # Stop if model signals end of turn with no tool calls
+            if choice.finish_reason == "stop" and not has_tool_use:
                 break
 
         if not briefing_found:
             yield _sse({"type": "error", "message": "Generation completed but no structured briefing was produced. Please try again."})
 
-    except anthropic.AuthenticationError:
-        yield _sse({"type": "error", "message": "Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY."})
     except Exception as e:
         logger.error(f"Briefing generation error: {e}")
         yield _sse({"type": "error", "message": f"Generation failed: {str(e)}"})

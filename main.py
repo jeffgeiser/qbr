@@ -418,15 +418,15 @@ async def briefings_health():
     """Health check for briefing dependencies."""
     checks = {}
     try:
-        import anthropic
-        checks["anthropic_sdk"] = "ok"
+        import openai
+        checks["openai_sdk"] = "ok"
     except ImportError as e:
-        checks["anthropic_sdk"] = f"missing: {e}"
+        checks["openai_sdk"] = f"missing: {e}"
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    checks["anthropic_key"] = "configured" if api_key else "missing"
-    if api_key:
-        checks["anthropic_key_preview"] = api_key[:8] + "..."
+    llm_url = os.environ.get("LOCAL_LLM_URL", "http://10.1.0.251:18010/v1/")
+    llm_model = os.environ.get("LOCAL_LLM_MODEL", "Qwen/Qwen3.5-35B-A3B")
+    checks["llm_url"] = llm_url
+    checks["llm_model"] = llm_model
 
     try:
         from services.briefing_generator import generate_briefing_stream
