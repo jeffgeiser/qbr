@@ -382,19 +382,28 @@ async def _resolve_account(account_name: str) -> str:
     return account_name
 
 
-def _truncate_result(result_json: str, max_bytes: int = 8000) -> str:
+def _truncate_result(result_json: str, max_bytes: int = 4000) -> str:
     """Truncate large tool results to stay within the model's context window."""
     if len(result_json) <= max_bytes:
         return result_json
+    # Try to intelligently truncate by keeping fewer records
     try:
         data = json.loads(result_json)
-        if isinstance(data, list) and len(data) > 5:
-            truncated = data[:5]
-            truncated.append({"_note": f"Truncated: showing 5 of {len(data)} records"})
-            return json.dumps(truncated, default=str)
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "text" in item:
+                    text = item["text"]
+                    # Truncate the text itself, keeping the header and first records
+                    if len(text) > max_bytes:
+                        item["text"] = text[:max_bytes] + "\n\n[... truncated — additional records omitted]"
+                    return json.dumps(data, default=str)
+            if len(data) > 5:
+                truncated = data[:5]
+                truncated.append({"_note": f"Truncated: showing 5 of {len(data)} records"})
+                return json.dumps(truncated, default=str)
     except (json.JSONDecodeError, TypeError):
         pass
-    return result_json[:max_bytes] + '..."}'
+    return result_json[:max_bytes] + "\n[truncated]"
 
 
 async def execute_salesforce_tool(tool_name: str, tool_input: dict) -> str:
@@ -487,7 +496,7 @@ async def generate_briefing_stream(
 
             api_kwargs = dict(
                 model=llm_model,
-                max_tokens=4096,
+                max_tokens=8192,
                 tools=SALESFORCE_TOOLS,
                 messages=messages,
             )
@@ -546,20 +555,28 @@ async def generate_briefing_stream(
                     result = await execute_salesforce_tool(tool_name, tool_input)
 
                     # Count records for the frontend — parse MCP text format
+                    import re
                     count = None
                     try:
                         parsed = json.loads(result)
                         if isinstance(parsed, list):
                             for item in parsed:
                                 if isinstance(item, dict) and "text" in item:
-                                    # MCP text format: "Query returned N records:\n..."
-                                    import re
-                                    m = re.search(r'returned (\d+) records', item["text"])
+                                    text = item["text"]
+                                    # Try "Query returned N records:" header
+                                    m = re.search(r'(?:returned|found)\s+(\d+)\s+records?', text, re.IGNORECASE)
                                     if m:
                                         count = int(m.group(1))
                                         break
-                            if count is None:
-                                count = len(parsed)
+                                    # Fallback: count "Record N:" occurrences
+                                    record_matches = re.findall(r'Record \d+:', text)
+                                    if record_matches:
+                                        count = len(record_matches)
+                                        break
+                            if count is None and len(parsed) > 0:
+                                # Check if the items themselves are records
+                                if not any(isinstance(p, dict) and "text" in p for p in parsed):
+                                    count = len(parsed)
                         elif isinstance(parsed, dict) and "data" in parsed:
                             count = len(parsed["data"])
                     except (json.JSONDecodeError, TypeError):
