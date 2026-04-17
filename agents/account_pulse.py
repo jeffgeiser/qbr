@@ -59,15 +59,24 @@ class AccountPulseAgent(BaseAgent):
         params = {"account_name": account_name, "days": days}
 
         cases = await hub.query("cases", params, "salesforce")
-        opps = await hub.query("opportunities", params, "salesforce")
+        open_opps = await hub.query("opportunities", {"account_name": account_name, "status": "open"}, "salesforce")
+        won_opps = await hub.query("opportunities", {"account_name": account_name, "status": "won", "days": days}, "salesforce")
+        lost_opps = await hub.query("opportunities", {"account_name": account_name, "status": "lost", "days": days}, "salesforce")
         activities = await hub.query("activities", params, "salesforce")
 
-        # Track what data we actually received for transparency
-        all_sources = (cases.sources or []) + (opps.sources or []) + (activities.sources or [])
+        all_sources = ((cases.sources or []) + (open_opps.sources or []) +
+                       (won_opps.sources or []) + (lost_opps.sources or []) +
+                       (activities.sources or []))
         data_receipt = {
-            "sources_checked": ["Salesforce Cases", "Salesforce Opportunities", "Salesforce Activities"],
+            "sources_checked": [
+                "Salesforce Cases", "Salesforce Open Opportunities",
+                "Salesforce Closed-Won", "Salesforce Closed-Lost",
+                "Salesforce Activities",
+            ],
             "cases_found": len(cases.records) if cases.records else 0,
-            "opportunities_found": len(opps.records) if opps.records else 0,
+            "open_opportunities": len(open_opps.records) if open_opps.records else 0,
+            "closed_won": len(won_opps.records) if won_opps.records else 0,
+            "closed_lost": len(lost_opps.records) if lost_opps.records else 0,
             "activities_found": len(activities.records) if activities.records else 0,
             "salesforce_connected": not bool(cases.error),
             "time_range_days": days,
@@ -117,34 +126,43 @@ class AccountPulseAgent(BaseAgent):
                     ],
                 ))
 
-        # --- Pipeline health ---
-        open_deals = 0
-        if opps.records:
-            lost = [o for o in opps.records
-                    if o.get("StageName", "").lower() in ("closed lost", "lost")]
-            stalled = [o for o in opps.records
-                       if o.get("StageName", "").lower() not in
-                       ("closed won", "closed lost", "won", "lost")
-                       and not o.get("NextStep")]
-            open_deals = len([o for o in opps.records
-                             if o.get("StageName", "").lower() not in
-                             ("closed won", "closed lost", "won", "lost")])
+        # --- Pipeline health & momentum ---
+        open_deals = len(open_opps.records) if open_opps.records else 0
+        won_deals = len(won_opps.records) if won_opps.records else 0
+        lost_deals_count = len(lost_opps.records) if lost_opps.records else 0
 
-            if lost:
-                insights.append(InsightCard(
-                    agent_instance_id=ctx.instance_id,
-                    agent_blueprint_id=self.blueprint.id,
-                    account_name=account_name,
-                    priority=Priority.HIGH,
-                    title=f"{len(lost)} deal{'s' if len(lost) != 1 else ''} lost recently",
-                    summary=f"{account_name} lost {len(lost)} opportunity(ies) in the last {days} days. Review for pattern or competitive displacement.",
-                    detail={"lost_deals": lost[:5], "data_receipt": data_receipt},
-                    sources=opps.sources[:5],
-                    actions=[
-                        {"label": "View Pipeline", "action_type": "source_link", "params": {}},
-                    ],
-                ))
+        if won_deals > 0:
+            insights.append(InsightCard(
+                agent_instance_id=ctx.instance_id,
+                agent_blueprint_id=self.blueprint.id,
+                account_name=account_name,
+                priority=Priority.INFO,
+                title=f"{won_deals} deal{'s' if won_deals != 1 else ''} closed-won recently",
+                summary=f"{account_name} closed {won_deals} deal{'s' if won_deals != 1 else ''} in the last {days} days. Positive revenue momentum.",
+                detail={"won_deals": (won_opps.records or [])[:5], "data_receipt": data_receipt},
+                sources=won_opps.sources[:5],
+                actions=[
+                    {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
+                ],
+            ))
 
+        if lost_deals_count > 0:
+            insights.append(InsightCard(
+                agent_instance_id=ctx.instance_id,
+                agent_blueprint_id=self.blueprint.id,
+                account_name=account_name,
+                priority=Priority.HIGH,
+                title=f"{lost_deals_count} deal{'s' if lost_deals_count != 1 else ''} lost recently",
+                summary=f"{account_name} lost {lost_deals_count} opportunity(ies) in the last {days} days. Review for pattern or competitive displacement.",
+                detail={"lost_deals": (lost_opps.records or [])[:5], "data_receipt": data_receipt},
+                sources=lost_opps.sources[:5],
+                actions=[
+                    {"label": "View Pipeline", "action_type": "source_link", "params": {}},
+                ],
+            ))
+
+        if open_opps.records:
+            stalled = [o for o in open_opps.records if not o.get("NextStep")]
             if stalled:
                 insights.append(InsightCard(
                     agent_instance_id=ctx.instance_id,
@@ -154,7 +172,7 @@ class AccountPulseAgent(BaseAgent):
                     title=f"{len(stalled)} stalled deal{'s' if len(stalled) != 1 else ''}",
                     summary=f"{account_name} has {len(stalled)} open opportunities with no defined next step.",
                     detail={"stalled_deals": stalled[:5], "data_receipt": data_receipt},
-                    sources=opps.sources[:5],
+                    sources=open_opps.sources[:5],
                     actions=[
                         {"label": "View Pipeline", "action_type": "source_link", "params": {}},
                     ],
@@ -185,17 +203,23 @@ class AccountPulseAgent(BaseAgent):
                 summary_parts.append(f"{len(cases.records)} cases ({case_open_count} open, {case_closed_count} closed)")
             else:
                 summary_parts.append("0 cases")
-            if opps.records:
+            if open_deals:
                 summary_parts.append(f"{open_deals} active deal{'s' if open_deals != 1 else ''}")
             else:
-                summary_parts.append("no pipeline")
+                summary_parts.append("no open pipeline")
+            if won_deals:
+                summary_parts.append(f"{won_deals} recent win{'s' if won_deals != 1 else ''}")
+            if lost_deals_count:
+                summary_parts.append(f"{lost_deals_count} recent loss{'es' if lost_deals_count != 1 else ''}")
             summary_parts.append(f"{activity_count} activit{'ies' if activity_count != 1 else 'y'}")
 
-            if not cases.records and not opps.records and activity_count == 0:
-                if cases.error or opps.error:
+            total_records = (len(cases.records or []) + open_deals + won_deals +
+                           lost_deals_count + activity_count)
+            if total_records == 0:
+                if cases.error or open_opps.error:
                     source_note = "Salesforce returned no data — connector may be down or account name may not match."
                 else:
-                    source_note = "No Salesforce records found for this account in the last {days} days.".format(days=days)
+                    source_note = f"No Salesforce records found for this account in the last {days} days."
                 summary_text = f"{account_name}: {source_note}"
             else:
                 summary_text = f"{account_name} — checked {', '.join(summary_parts)} over the last {days} days. No critical risks, stalled deals, or engagement gaps detected."
