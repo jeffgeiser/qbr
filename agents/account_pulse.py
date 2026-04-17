@@ -62,6 +62,20 @@ class AccountPulseAgent(BaseAgent):
         opps = await hub.query("opportunities", params, "salesforce")
         activities = await hub.query("activities", params, "salesforce")
 
+        # Track what data we actually received for transparency
+        all_sources = (cases.sources or []) + (opps.sources or []) + (activities.sources or [])
+        data_receipt = {
+            "sources_checked": ["Salesforce Cases", "Salesforce Opportunities", "Salesforce Activities"],
+            "cases_found": len(cases.records) if cases.records else 0,
+            "opportunities_found": len(opps.records) if opps.records else 0,
+            "activities_found": len(activities.records) if activities.records else 0,
+            "salesforce_connected": not bool(cases.error),
+            "time_range_days": days,
+        }
+
+        case_open_count = 0
+        case_closed_count = 0
+
         # --- Support health ---
         if cases.records:
             critical = [c for c in cases.records
@@ -75,7 +89,7 @@ class AccountPulseAgent(BaseAgent):
                     priority=Priority.HIGH,
                     title=f"{len(critical)} critical case{'s' if len(critical) != 1 else ''} open",
                     summary=f"{account_name} has {len(critical)} high/critical priority support cases requiring attention.",
-                    detail={"critical_cases": critical[:5]},
+                    detail={"critical_cases": critical[:5], "data_receipt": data_receipt},
                     sources=cases.sources[:5],
                     actions=[
                         {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
@@ -84,18 +98,18 @@ class AccountPulseAgent(BaseAgent):
                     ],
                 ))
 
-            open_count = len([c for c in cases.records
+            case_open_count = len([c for c in cases.records
                              if c.get("Status", "").lower() not in ("closed", "resolved")])
-            closed_count = len(cases.records) - open_count
-            if open_count > 5:
+            case_closed_count = len(cases.records) - case_open_count
+            if case_open_count > 5:
                 insights.append(InsightCard(
                     agent_instance_id=ctx.instance_id,
                     agent_blueprint_id=self.blueprint.id,
                     account_name=account_name,
                     priority=Priority.MEDIUM,
-                    title=f"High case volume: {open_count} open tickets",
-                    summary=f"{account_name} has {open_count} open and {closed_count} closed cases in the last {days} days.",
-                    detail={"open_count": open_count, "closed_count": closed_count},
+                    title=f"High case volume: {case_open_count} open tickets",
+                    summary=f"{account_name} has {case_open_count} open and {case_closed_count} closed cases in the last {days} days.",
+                    detail={"open_count": case_open_count, "closed_count": case_closed_count, "data_receipt": data_receipt},
                     sources=cases.sources[:3],
                     actions=[
                         {"label": "Run Health Brief", "action_type": "generate_briefing",
@@ -104,6 +118,7 @@ class AccountPulseAgent(BaseAgent):
                 ))
 
         # --- Pipeline health ---
+        open_deals = 0
         if opps.records:
             lost = [o for o in opps.records
                     if o.get("StageName", "").lower() in ("closed lost", "lost")]
@@ -111,6 +126,9 @@ class AccountPulseAgent(BaseAgent):
                        if o.get("StageName", "").lower() not in
                        ("closed won", "closed lost", "won", "lost")
                        and not o.get("NextStep")]
+            open_deals = len([o for o in opps.records
+                             if o.get("StageName", "").lower() not in
+                             ("closed won", "closed lost", "won", "lost")])
 
             if lost:
                 insights.append(InsightCard(
@@ -120,7 +138,7 @@ class AccountPulseAgent(BaseAgent):
                     priority=Priority.HIGH,
                     title=f"{len(lost)} deal{'s' if len(lost) != 1 else ''} lost recently",
                     summary=f"{account_name} lost {len(lost)} opportunity(ies) in the last {days} days. Review for pattern or competitive displacement.",
-                    detail={"lost_deals": lost[:5]},
+                    detail={"lost_deals": lost[:5], "data_receipt": data_receipt},
                     sources=opps.sources[:5],
                     actions=[
                         {"label": "View Pipeline", "action_type": "source_link", "params": {}},
@@ -135,7 +153,7 @@ class AccountPulseAgent(BaseAgent):
                     priority=Priority.MEDIUM,
                     title=f"{len(stalled)} stalled deal{'s' if len(stalled) != 1 else ''}",
                     summary=f"{account_name} has {len(stalled)} open opportunities with no defined next step.",
-                    detail={"stalled_deals": stalled[:5]},
+                    detail={"stalled_deals": stalled[:5], "data_receipt": data_receipt},
                     sources=opps.sources[:5],
                     actions=[
                         {"label": "View Pipeline", "action_type": "source_link", "params": {}},
@@ -143,15 +161,16 @@ class AccountPulseAgent(BaseAgent):
                 ))
 
         # --- Engagement gaps ---
-        if not activities.records or len(activities.records) < 2:
+        activity_count = len(activities.records) if activities.records else 0
+        if activity_count < 2:
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
                 priority=Priority.MEDIUM,
                 title="Low engagement detected",
-                summary=f"{account_name} has very few recorded activities in the last {days} days. Consider scheduling outreach.",
-                detail={"activity_count": len(activities.records) if activities.records else 0},
+                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.",
+                detail={"activity_count": activity_count, "data_receipt": data_receipt},
                 sources=activities.sources,
                 actions=[
                     {"label": "Prep Meeting", "action_type": "run_agent",
@@ -159,17 +178,41 @@ class AccountPulseAgent(BaseAgent):
                 ],
             ))
 
+        # --- Stable / all-clear (with evidence of what was checked) ---
         if not insights:
+            summary_parts = []
+            if cases.records:
+                summary_parts.append(f"{len(cases.records)} cases ({case_open_count} open, {case_closed_count} closed)")
+            else:
+                summary_parts.append("0 cases")
+            if opps.records:
+                summary_parts.append(f"{open_deals} active deal{'s' if open_deals != 1 else ''}")
+            else:
+                summary_parts.append("no pipeline")
+            summary_parts.append(f"{activity_count} activit{'ies' if activity_count != 1 else 'y'}")
+
+            if not cases.records and not opps.records and activity_count == 0:
+                if cases.error or opps.error:
+                    source_note = "Salesforce returned no data — connector may be down or account name may not match."
+                else:
+                    source_note = "No Salesforce records found for this account in the last {days} days.".format(days=days)
+                summary_text = f"{account_name}: {source_note}"
+            else:
+                summary_text = f"{account_name} — checked {', '.join(summary_parts)} over the last {days} days. No critical risks, stalled deals, or engagement gaps detected."
+
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
                 priority=Priority.INFO,
-                title="Stable",
-                summary=f"{account_name} shows no notable changes in the last {days} days.",
-                detail={},
-                sources=[],
-                actions=[],
+                title="Stable — no action needed",
+                summary=summary_text,
+                detail={"data_receipt": data_receipt},
+                sources=all_sources[:5],
+                actions=[
+                    {"label": "Generate Full Brief", "action_type": "generate_briefing",
+                     "params": {"account_name": account_name, "type": "internal"}},
+                ],
             ))
 
         return insights
