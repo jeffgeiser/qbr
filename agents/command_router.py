@@ -36,6 +36,9 @@ Available agents:
 - meeting_prep: Pre-call briefing with talking points, landmines, and recommended asks. Use when user mentions meeting, call, prep, or preparing for a conversation.
 - deal_strategist: Pipeline analysis, deal coaching, competitive positioning. Use when user asks about deals, pipeline, strategy, win plan, or competitive situation.
 - customer_voice: Support ticket analysis, escalation prediction, recurring issue detection. Use when user asks about support, cases, tickets, customer satisfaction, or escalation risk.
+- news_monitor: Industry news about customer companies. Use when user asks about news, press, industry updates, or what's happening publicly with a company.
+- account_digest: Summary of changes across accounts. Use when user asks for a digest, weekly summary, recap, or wants to send a Teams notification.
+- executive_pulse: Portfolio-wide health for leadership. Use when user asks about overall portfolio, all accounts, team performance, or executive summary.
 
 Extract the following as JSON:
 {
@@ -102,6 +105,12 @@ def _heuristic_parse(user_message: str) -> CommandIntent:
         agent_id = "deal_strategist"
     elif any(w in msg for w in ("support", "cases", "tickets", "escalat", "satisfaction", "voice")):
         agent_id = "customer_voice"
+    elif any(w in msg for w in ("news", "press", "article", "industry", "headline", "announce")):
+        agent_id = "news_monitor"
+    elif any(w in msg for w in ("digest", "summary", "recap", "weekly", "teams notification")):
+        agent_id = "account_digest"
+    elif any(w in msg for w in ("portfolio", "all accounts", "executive", "leadership", "overview", "aggregate")):
+        agent_id = "executive_pulse"
     else:
         agent_id = "account_pulse"
 
