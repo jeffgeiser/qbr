@@ -660,6 +660,7 @@ async def logout(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("", response_class=HTMLResponse)
+@app.get("/tracker", response_class=HTMLResponse)
 async def dashboard(request: Request):
     redirect = require_login(request)
     if redirect:
