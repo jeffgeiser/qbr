@@ -574,11 +574,17 @@ def _register_agents_and_connectors():
     from agents.meeting_prep import MeetingPrepAgent
     from agents.deal_strategist import DealStrategistAgent
     from agents.customer_voice import CustomerVoiceAgent
+    from agents.news_monitor import NewsMonitorAgent
+    from agents.account_digest import AccountDigestAgent
+    from agents.executive_pulse import ExecutivePulseAgent
     registry.register(AccountPulseAgent)
     registry.register(QBRComposerAgent)
     registry.register(MeetingPrepAgent)
     registry.register(DealStrategistAgent)
     registry.register(CustomerVoiceAgent)
+    registry.register(NewsMonitorAgent)
+    registry.register(AccountDigestAgent)
+    registry.register(ExecutivePulseAgent)
 
     from integrations.hub import hub
     from integrations.salesforce import SalesforceMCPConnector
@@ -654,6 +660,7 @@ async def logout(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("", response_class=HTMLResponse)
+@app.get("/tracker", response_class=HTMLResponse)
 async def dashboard(request: Request):
     redirect = require_login(request)
     if redirect:
