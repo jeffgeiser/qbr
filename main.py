@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import List, Optional, Dict
 from contextlib import asynccontextmanager
+from datetime import datetime
 import json
 import uuid
 import sqlite3
@@ -12,6 +13,11 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+from core.models import (
+    AgentContext, InsightCard, Priority, InsightStatus, PRIORITY_RANK,
+)
+from core.agent_runtime import registry, AgentInstance, AgentBlueprint
 
 # --- Jinja2 Template Setup ---
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
@@ -81,6 +87,54 @@ def init_db():
         )
     ''')
     conn.commit()
+
+    # --- Agent platform tables ---
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS agent_instances (
+            id TEXT PRIMARY KEY,
+            user_id TEXT DEFAULT 'default',
+            blueprint_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            config TEXT DEFAULT '{}',
+            scope TEXT DEFAULT '{}',
+            schedule TEXT DEFAULT 'manual',
+            status TEXT DEFAULT 'active',
+            last_run_at TEXT DEFAULT '',
+            next_run_at TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS insights (
+            id TEXT PRIMARY KEY,
+            agent_instance_id TEXT DEFAULT '',
+            agent_blueprint_id TEXT DEFAULT '',
+            account_id TEXT DEFAULT '',
+            account_name TEXT DEFAULT '',
+            priority TEXT DEFAULT 'info',
+            title TEXT DEFAULT '',
+            summary TEXT DEFAULT '',
+            detail_json TEXT DEFAULT '{}',
+            sources_json TEXT DEFAULT '[]',
+            actions_json TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'unread',
+            created_at TEXT NOT NULL,
+            expires_at TEXT DEFAULT ''
+        )
+    ''')
+    conn.commit()
+
+    # Account table migrations for agent platform
+    agent_migrations = [
+        "ALTER TABLE accounts ADD COLUMN must_win INTEGER DEFAULT 0",
+        "ALTER TABLE accounts ADD COLUMN priority_boost INTEGER DEFAULT 0",
+    ]
+    for m in agent_migrations:
+        try:
+            cursor.execute(m)
+            conn.commit()
+        except Exception:
+            pass
 
     # Seed with sample data if table is empty
     cursor.execute("SELECT COUNT(*) FROM accounts")
@@ -234,7 +288,6 @@ def delete_account_by_id(account_id: str):
 def save_briefing_result(result_id: str, account_id: str, briefing_type: str, time_range_days: int, result: dict):
     conn = get_db()
     cursor = conn.cursor()
-    from datetime import datetime
     cursor.execute('''
         INSERT OR REPLACE INTO briefing_results (id, account_id, briefing_type, time_range_days, result_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -260,6 +313,145 @@ def get_briefing_result(result_id: str):
     return None
 
 
+# --- Agent Instance DB Helpers ---
+
+def get_all_agent_instances(user_id: str = "default") -> list[dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM agent_instances WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [_row_to_instance(r) for r in rows]
+
+
+def get_agent_instance(instance_id: str) -> dict | None:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM agent_instances WHERE id = ?", (instance_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return _row_to_instance(row) if row else None
+
+
+def save_agent_instance(inst: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO agent_instances (id, user_id, blueprint_id, name, config, scope, schedule, status, last_run_at, next_run_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        inst["id"], inst.get("user_id", "default"), inst["blueprint_id"], inst["name"],
+        json.dumps(inst.get("config", {})), json.dumps(inst.get("scope", {})),
+        inst.get("schedule", "manual"), inst.get("status", "active"),
+        inst.get("last_run_at", ""), inst.get("next_run_at", ""),
+        inst.get("created_at", datetime.utcnow().isoformat()),
+    ))
+    conn.commit()
+    conn.close()
+
+
+def delete_agent_instance(instance_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM agent_instances WHERE id = ?", (instance_id,))
+    conn.commit()
+    conn.close()
+
+
+def _row_to_instance(row) -> dict:
+    return {
+        "id": row["id"],
+        "user_id": row["user_id"],
+        "blueprint_id": row["blueprint_id"],
+        "name": row["name"],
+        "config": _safe_json(row["config"], {}),
+        "scope": _safe_json(row["scope"], {}),
+        "schedule": row["schedule"],
+        "status": row["status"],
+        "last_run_at": row["last_run_at"],
+        "next_run_at": row["next_run_at"],
+        "created_at": row["created_at"],
+    }
+
+
+# --- Insights DB Helpers ---
+
+def save_insight(card: InsightCard):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO insights (id, agent_instance_id, agent_blueprint_id, account_id, account_name,
+            priority, title, summary, detail_json, sources_json, actions_json, status, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        card.id, card.agent_instance_id, card.agent_blueprint_id,
+        card.account_id, card.account_name,
+        card.priority.value if isinstance(card.priority, Priority) else card.priority,
+        card.title, card.summary,
+        json.dumps(card.detail), json.dumps([s.to_dict() for s in card.sources]),
+        json.dumps(card.actions),
+        card.status.value if isinstance(card.status, InsightStatus) else card.status,
+        card.created_at, card.expires_at,
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_insights(limit: int = 50, status_filter: str = "") -> list[dict]:
+    conn = get_db()
+    cursor = conn.cursor()
+    if status_filter:
+        cursor.execute(
+            "SELECT * FROM insights WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+            (status_filter, limit))
+    else:
+        cursor.execute(
+            "SELECT * FROM insights WHERE status != 'dismissed' ORDER BY created_at DESC LIMIT ?",
+            (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [_row_to_insight(r) for r in rows]
+
+
+def update_insight_status(insight_id: str, status: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE insights SET status = ? WHERE id = ?", (status, insight_id))
+    conn.commit()
+    conn.close()
+
+
+def _row_to_insight(row) -> dict:
+    return {
+        "id": row["id"],
+        "agent_instance_id": row["agent_instance_id"],
+        "agent_blueprint_id": row["agent_blueprint_id"],
+        "account_id": row["account_id"],
+        "account_name": row["account_name"],
+        "priority": row["priority"],
+        "title": row["title"],
+        "summary": row["summary"],
+        "detail": _safe_json(row["detail_json"], {}),
+        "sources": _safe_json(row["sources_json"], []),
+        "actions": _safe_json(row["actions_json"], []),
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "expires_at": row["expires_at"],
+    }
+
+
+def get_must_win_accounts() -> list[str]:
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM accounts WHERE must_win = 1")
+        names = [r["name"] for r in cursor.fetchall()]
+    except Exception:
+        names = []
+    conn.close()
+    return names
+
+
 # --- App Lifespan ---
 
 async def try_connect_salesforce():
@@ -274,13 +466,37 @@ async def try_connect_salesforce():
     except Exception as e:
         logger.warning(f"Could not connect to Salesforce MCP: {e}. Briefing generator will use mock data.")
 
+def _register_agents_and_connectors():
+    """Register all agent blueprints and integration connectors."""
+    from agents.account_pulse import AccountPulseAgent
+    from agents.qbr_composer import QBRComposerAgent
+    registry.register(AccountPulseAgent)
+    registry.register(QBRComposerAgent)
+
+    from integrations.hub import hub
+    from integrations.salesforce import SalesforceMCPConnector
+    hub.register(SalesforceMCPConnector())
+    logger.info("Agents and connectors registered.")
+
+
 @asynccontextmanager
 async def lifespan(app):
     # Startup
     init_db()
+    _register_agents_and_connectors()
     await try_connect_salesforce()
+    try:
+        from services.scheduler import start_scheduler
+        await start_scheduler()
+    except Exception as e:
+        logger.warning(f"Scheduler not started: {e}")
     yield
     # Shutdown
+    try:
+        from services.scheduler import stop_scheduler
+        await stop_scheduler()
+    except Exception:
+        pass
     try:
         from services.salesforce_mcp import salesforce_client
         await salesforce_client.disconnect()
@@ -437,13 +653,14 @@ async def briefings_health():
     return JSONResponse(checks)
 
 
+@app.get("/workbench", response_class=HTMLResponse)
+async def workbench_page():
+    return render_template("workbench.html", active_nav="workbench")
+
+
 @app.get("/briefings", response_class=HTMLResponse)
 async def briefings_page(type: Optional[str] = None):
-    return render_template(
-        "briefings.html",
-        preselected_type=type or "",
-        active_nav="briefings",
-    )
+    return render_template("workbench.html", active_nav="workbench")
 
 
 @app.post("/api/briefings/parse-input")
@@ -595,6 +812,246 @@ async def briefing_result_page(account_id: str, briefing_type: str, result_id: O
         time_range_days=result["time_range_days"],
         active_nav=active,
     )
+
+
+# =============================================================================
+# Agent Platform API Routes
+# =============================================================================
+
+@app.get("/api/agents/blueprints")
+async def list_blueprints():
+    return JSONResponse([bp.to_dict() for bp in registry.get_all_blueprints()])
+
+
+@app.get("/api/agents/instances")
+async def list_instances():
+    return JSONResponse(get_all_agent_instances())
+
+
+@app.post("/api/agents/activate")
+async def activate_agent(request: Request):
+    body = await request.json()
+    blueprint_id = body.get("blueprint_id", "")
+    bp = registry.get_blueprint(blueprint_id)
+    if not bp:
+        return JSONResponse({"error": f"Unknown blueprint: {blueprint_id}"}, status_code=404)
+
+    existing = get_all_agent_instances()
+    for inst in existing:
+        if inst["blueprint_id"] == blueprint_id:
+            return JSONResponse({"error": "Already activated", "instance": inst}, status_code=409)
+
+    instance = {
+        "id": str(uuid.uuid4()),
+        "user_id": "default",
+        "blueprint_id": blueprint_id,
+        "name": bp.name,
+        "config": bp.default_config,
+        "scope": body.get("scope", {}),
+        "schedule": body.get("schedule", "manual"),
+        "status": "active",
+        "last_run_at": "",
+        "next_run_at": "",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    save_agent_instance(instance)
+    return JSONResponse(instance)
+
+
+@app.post("/api/agents/{instance_id}/run")
+async def run_agent_instance(instance_id: str):
+    inst = get_agent_instance(instance_id)
+    if not inst:
+        return JSONResponse({"error": "Instance not found"}, status_code=404)
+
+    agent = registry.create_agent(inst["blueprint_id"])
+    if not agent:
+        return JSONResponse({"error": "Agent implementation not found"}, status_code=500)
+
+    accounts = get_all_accounts()
+    scope = inst.get("scope", {})
+    scope_ids = scope.get("account_ids", [])
+    scope_tiers = scope.get("tiers", [])
+
+    if scope_ids:
+        target_accounts = [a for a in accounts if a["id"] in scope_ids]
+    elif scope_tiers:
+        target_accounts = [a for a in accounts if a["tier"] in scope_tiers]
+    else:
+        target_accounts = accounts
+
+    must_win = get_must_win_accounts()
+    context = AgentContext(
+        account_ids=[a["id"] for a in target_accounts],
+        account_names=[a["name"] for a in target_accounts],
+        config=inst.get("config", {}),
+        time_range_days=inst.get("config", {}).get("days", 90),
+        must_win_accounts=must_win,
+        instance_id=instance_id,
+    )
+
+    inst["status"] = "running"
+    save_agent_instance(inst)
+
+    try:
+        result = await agent.run(context)
+        for card in result.insights:
+            card.agent_instance_id = instance_id
+            save_insight(card)
+
+        inst["status"] = "active"
+        inst["last_run_at"] = datetime.utcnow().isoformat()
+        save_agent_instance(inst)
+
+        return JSONResponse({
+            "success": result.success,
+            "insight_count": len(result.insights),
+            "errors": result.errors,
+        })
+    except Exception as e:
+        inst["status"] = "error"
+        save_agent_instance(inst)
+        logger.error(f"Agent run failed: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/agents/{instance_id}/toggle")
+async def toggle_agent_instance(instance_id: str):
+    inst = get_agent_instance(instance_id)
+    if not inst:
+        return JSONResponse({"error": "Instance not found"}, status_code=404)
+
+    new_status = "paused" if inst["status"] == "active" else "active"
+    inst["status"] = new_status
+    save_agent_instance(inst)
+    return JSONResponse({"status": new_status})
+
+
+@app.delete("/api/agents/{instance_id}")
+async def deactivate_agent(instance_id: str):
+    delete_agent_instance(instance_id)
+    try:
+        from services.scheduler import unschedule_agent_instance
+        unschedule_agent_instance(instance_id)
+    except Exception:
+        pass
+    return JSONResponse({"deleted": True})
+
+
+# --- Intelligence Feed API ---
+
+@app.get("/api/feed")
+async def get_feed():
+    raw = get_insights(limit=100)
+    priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    raw.sort(key=lambda i: (priority_order.get(i["priority"], 4), i["created_at"]))
+    return JSONResponse(raw)
+
+
+@app.post("/api/feed/{insight_id}/dismiss")
+async def dismiss_insight(insight_id: str):
+    update_insight_status(insight_id, "dismissed")
+    return JSONResponse({"dismissed": True})
+
+
+@app.post("/api/feed/{insight_id}/read")
+async def mark_insight_read(insight_id: str):
+    update_insight_status(insight_id, "read")
+    return JSONResponse({"read": True})
+
+
+# --- Command Bar API ---
+
+@app.post("/api/command")
+async def command_endpoint(request: Request):
+    """The universal command bar. Parses natural language, routes to the right agent, streams results."""
+    body = await request.json()
+    user_message = body.get("message", "").strip()
+    if not user_message:
+        return JSONResponse({"error": "Empty message"}, status_code=400)
+
+    from agents.command_router import parse_command
+
+    async def command_stream():
+        try:
+            intent = await parse_command(user_message)
+            yield _sse({"type": "status", "message": f"Routing to {intent.agent_id.replace('_', ' ').title()}..."})
+
+            if intent.agent_id == "qbr_composer":
+                briefing_type = intent.params.get("briefing_type", "internal")
+                acct = intent.account_names[0] if intent.account_names else user_message
+                user_msg = f"{acct} for the last {intent.params.get('days', 90)} days"
+
+                from services.briefing_generator import generate_briefing_stream
+                async for event in generate_briefing_stream(briefing_type, user_msg):
+                    yield event
+                    if "briefing_ready" in event:
+                        try:
+                            data = json.loads(event.split("data: ", 1)[1].strip())
+                            data["briefing_type"] = briefing_type
+                            yield _sse(data)
+                        except Exception:
+                            pass
+            else:
+                agent = registry.create_agent(intent.agent_id)
+                if not agent:
+                    yield _sse({"type": "error", "message": f"Agent '{intent.agent_id}' not available"})
+                    return
+
+                if not intent.account_names:
+                    accounts = get_all_accounts()
+                    intent.account_names = [a["name"] for a in accounts[:5]]
+
+                must_win = get_must_win_accounts()
+                context = AgentContext(
+                    account_names=intent.account_names,
+                    config=intent.params,
+                    time_range_days=intent.params.get("days", 90),
+                    user_message=user_message,
+                    must_win_accounts=must_win,
+                )
+
+                async for evt in agent.stream(context):
+                    yield _sse(evt)
+                    if evt.get("type") == "insight":
+                        card_data = evt["data"]
+                        card = InsightCard(
+                            id=card_data.get("id", str(uuid.uuid4())),
+                            agent_blueprint_id=card_data.get("agent_blueprint_id", intent.agent_id),
+                            account_name=card_data.get("account_name", ""),
+                            priority=Priority(card_data.get("priority", "info")),
+                            title=card_data.get("title", ""),
+                            summary=card_data.get("summary", ""),
+                            detail=card_data.get("detail", {}),
+                            actions=card_data.get("actions", []),
+                            created_at=card_data.get("created_at", datetime.utcnow().isoformat()),
+                        )
+                        save_insight(card)
+
+                yield _sse({"type": "insights_ready"})
+
+        except Exception as e:
+            logger.error(f"Command error: {e}", exc_info=True)
+            yield _sse({"type": "error", "message": f"Command failed: {str(e)}"})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        command_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
+
+
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data)}\n\n"
+
+
+# --- Integration Status ---
+
+@app.get("/api/integrations/status")
+async def integrations_status():
+    from integrations.hub import hub
+    return JSONResponse(hub.get_all_statuses())
 
 
 if __name__ == "__main__":
