@@ -31,6 +31,23 @@ class AccountPulseAgent(BaseAgent):
         },
         capabilities=["health_monitoring", "risk_detection", "trend_analysis"],
         schedule_options=["manual", "hourly", "daily", "weekly"],
+        data_sources=[
+            "Salesforce Cases (open/closed, priority, status)",
+            "Salesforce Open Opportunities (stage, amount, next step)",
+            "Salesforce Closed-Won Opportunities (recent wins)",
+            "Salesforce Closed-Lost Opportunities (recent losses)",
+            "Salesforce Activities/Tasks (engagement volume)",
+        ],
+        logic_steps=[
+            "Flags critical/high priority cases that are still open",
+            "Alerts if more than 5 cases are open simultaneously",
+            "Surfaces recent closed-won deals as positive momentum",
+            "Flags recently lost deals for competitive review",
+            "Identifies stalled deals (open with no defined next step)",
+            "Detects engagement gaps (fewer than 2 activities in time range)",
+            "Boosts priority for accounts marked as must-win",
+        ],
+        output_types=["Risk alerts", "Momentum signals", "Engagement warnings", "Stable status with evidence"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

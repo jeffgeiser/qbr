@@ -33,6 +33,20 @@ class AccountDigestAgent(BaseAgent):
         },
         capabilities=["digest", "notifications", "teams_integration"],
         schedule_options=["manual", "daily", "weekly"],
+        data_sources=[
+            "Salesforce Cases (new and open case counts)",
+            "Salesforce Open Opportunities (pipeline deal count)",
+            "Salesforce Activities (engagement volume)",
+        ],
+        logic_steps=[
+            "Iterates each account in scope and fetches case/opp/activity data",
+            "Computes change summary: new cases, open cases, deal count, activity count",
+            "Flags critical/high cases as alerts in the digest",
+            "Formats results as a Teams MessageCard with per-account sections",
+            "Posts to configured Teams incoming webhook URL",
+            "Also creates an in-app insight card with the digest summary",
+        ],
+        output_types=["Teams channel notification", "In-app digest summary"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

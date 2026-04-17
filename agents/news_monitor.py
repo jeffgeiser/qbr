@@ -28,6 +28,17 @@ class NewsMonitorAgent(BaseAgent):
         },
         capabilities=["news_monitoring", "competitive_intelligence", "industry_awareness"],
         schedule_options=["manual", "daily", "weekly"],
+        data_sources=[
+            "Google News RSS (public news articles matching account name)",
+        ],
+        logic_steps=[
+            "Searches Google News RSS for each account in scope",
+            "Extracts title, source, publish date, and snippet",
+            "Creates one insight card per article, tagged to the account",
+            "Boosts priority from low to medium for must-win accounts",
+            "No API key required — uses public RSS feeds",
+        ],
+        output_types=["News article alerts with source links"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:
