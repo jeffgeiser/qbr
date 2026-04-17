@@ -571,8 +571,14 @@ def _register_agents_and_connectors():
     """Register all agent blueprints and integration connectors."""
     from agents.account_pulse import AccountPulseAgent
     from agents.qbr_composer import QBRComposerAgent
+    from agents.meeting_prep import MeetingPrepAgent
+    from agents.deal_strategist import DealStrategistAgent
+    from agents.customer_voice import CustomerVoiceAgent
     registry.register(AccountPulseAgent)
     registry.register(QBRComposerAgent)
+    registry.register(MeetingPrepAgent)
+    registry.register(DealStrategistAgent)
+    registry.register(CustomerVoiceAgent)
 
     from integrations.hub import hub
     from integrations.salesforce import SalesforceMCPConnector

@@ -31,8 +31,11 @@ class CommandIntent:
 ROUTING_PROMPT = """You are a command router for a sales intelligence platform. Given a user's natural language query, determine which agent to invoke and extract the parameters.
 
 Available agents:
-- account_pulse: Health monitoring, risk detection, account status checks. Use for questions about account health, risks, what's happening with an account.
+- account_pulse: Health monitoring, risk detection, account status checks. Use for questions about account health, risks, what's happening with an account, general status.
 - qbr_composer: Generate formal briefing documents (internal health briefs or customer-facing QBRs). Use when user wants to generate/create a briefing, document, or QBR.
+- meeting_prep: Pre-call briefing with talking points, landmines, and recommended asks. Use when user mentions meeting, call, prep, or preparing for a conversation.
+- deal_strategist: Pipeline analysis, deal coaching, competitive positioning. Use when user asks about deals, pipeline, strategy, win plan, or competitive situation.
+- customer_voice: Support ticket analysis, escalation prediction, recurring issue detection. Use when user asks about support, cases, tickets, customer satisfaction, or escalation risk.
 
 Extract the following as JSON:
 {
@@ -46,9 +49,7 @@ Extract the following as JSON:
 }
 
 If the query mentions multiple accounts, include all. If no specific account, use an empty list.
-If the user wants a briefing/document/QBR, route to qbr_composer.
-If the user asks about health, status, risks, what's happening, route to account_pulse.
-Default to account_pulse for general questions.
+Default to account_pulse for general/ambiguous questions.
 
 Respond with ONLY the JSON object."""
 
@@ -95,6 +96,12 @@ def _heuristic_parse(user_message: str) -> CommandIntent:
 
     if any(w in msg for w in ("brief", "qbr", "document", "generate", "compose", "draft", "create")):
         agent_id = "qbr_composer"
+    elif any(w in msg for w in ("meeting", "call", "prep", "prepare", "pre-call", "talking points")):
+        agent_id = "meeting_prep"
+    elif any(w in msg for w in ("deal", "pipeline", "strategy", "win plan", "competitive", "forecast")):
+        agent_id = "deal_strategist"
+    elif any(w in msg for w in ("support", "cases", "tickets", "escalat", "satisfaction", "voice")):
+        agent_id = "customer_voice"
     else:
         agent_id = "account_pulse"
 
