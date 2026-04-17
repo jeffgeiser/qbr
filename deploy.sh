@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+COMPOSE_FILE="/var/www/dashboards/docker-compose.yml"
+SERVICE="qbr"
 
 cd "$(dirname "$0")"
-
-echo "==> Pulling latest from main..."
+echo "==> Pulling latest..."
 git pull origin main
 
-echo "==> Building and restarting containers..."
-docker compose build
-docker compose up -d
+echo "==> Rebuilding $SERVICE..."
+docker compose -f "$COMPOSE_FILE" build "$SERVICE"
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate "$SERVICE"
 
 echo "==> Done."
+docker compose -f "$COMPOSE_FILE" logs "$SERVICE" --tail=20
