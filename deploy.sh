@@ -10,5 +10,4 @@ echo "==> Building and restarting containers..."
 docker compose build
 docker compose up -d
 
-echo "==> Done. Tailing logs (ctrl-c to exit)..."
-docker compose logs -f --tail=20
+echo "==> Done."

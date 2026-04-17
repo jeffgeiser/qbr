@@ -30,6 +30,18 @@ class CustomerVoiceAgent(BaseAgent):
         },
         capabilities=["support_analysis", "escalation_prediction", "feedback_synthesis"],
         schedule_options=["manual", "daily", "weekly"],
+        data_sources=[
+            "Salesforce Cases (subject, status, priority, created/closed dates)",
+        ],
+        logic_steps=[
+            "Counts open vs closed cases and computes resolution ratio",
+            "Flags escalation risk when critical/high cases exceed threshold (default: 3)",
+            "Detects growing backlog (>40% of cases still open)",
+            "Clusters case subjects by keyword to find recurring themes",
+            "Filters noise words to surface meaningful patterns",
+            "Reports recurring themes with 3+ occurrences",
+        ],
+        output_types=["Escalation risk alerts", "Backlog warnings", "Recurring issue patterns"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

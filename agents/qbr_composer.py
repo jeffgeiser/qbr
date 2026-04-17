@@ -33,6 +33,21 @@ class QBRComposerAgent(BaseAgent):
         },
         capabilities=["briefing_generation", "document_composition", "executive_summary"],
         schedule_options=["manual"],
+        data_sources=[
+            "Salesforce Account Info (type, industry, revenue, owner)",
+            "Salesforce Cases (support history and trends)",
+            "Salesforce Opportunities (pipeline, wins, losses)",
+            "Salesforce Contacts (stakeholder map)",
+            "Salesforce Activities (engagement timeline)",
+        ],
+        logic_steps=[
+            "LLM calls Salesforce tools to gather account data",
+            "Synthesizes data into structured briefing format",
+            "Internal brief: risk-focused, evidence-based, health scorecard",
+            "Customer QBR: diplomatic, forward-looking, improvement plans",
+            "Falls back to local tracker data if Salesforce unavailable",
+        ],
+        output_types=["Internal Executive Health Brief", "Customer-Facing QBR Document"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

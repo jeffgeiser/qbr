@@ -32,6 +32,9 @@ class AgentBlueprint:
     default_config: dict = field(default_factory=dict)
     capabilities: list[str] = field(default_factory=list)
     schedule_options: list[str] = field(default_factory=lambda: ["manual", "daily", "weekly"])
+    data_sources: list[str] = field(default_factory=list)
+    logic_steps: list[str] = field(default_factory=list)
+    output_types: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -45,6 +48,9 @@ class AgentBlueprint:
             "default_config": self.default_config,
             "capabilities": self.capabilities,
             "schedule_options": self.schedule_options,
+            "data_sources": self.data_sources,
+            "logic_steps": self.logic_steps,
+            "output_types": self.output_types,
         }
 
 

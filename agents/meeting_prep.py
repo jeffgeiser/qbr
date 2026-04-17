@@ -75,6 +75,22 @@ class MeetingPrepAgent(BaseAgent):
         },
         capabilities=["meeting_preparation", "talking_points", "risk_awareness"],
         schedule_options=["manual"],
+        data_sources=[
+            "Salesforce Cases (open issues to address)",
+            "Salesforce Opportunities (pipeline context)",
+            "Salesforce Contacts (who you're meeting with)",
+            "Salesforce Activities (recent interaction history)",
+            "Salesforce Account Info (company context)",
+        ],
+        logic_steps=[
+            "Fetches all 5 data types from Salesforce in parallel",
+            "LLM synthesizes into structured meeting brief",
+            "Generates talking points based on actual account data",
+            "Identifies landmines (open critical cases, lost deals, gaps)",
+            "Recommends specific asks based on pipeline and relationship state",
+            "Falls back to structured data summary if LLM unavailable",
+        ],
+        output_types=["Pre-call briefing with talking points, landmines, and asks"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

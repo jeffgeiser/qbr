@@ -69,6 +69,21 @@ class DealStrategistAgent(BaseAgent):
         },
         capabilities=["deal_coaching", "pipeline_analysis", "competitive_intelligence"],
         schedule_options=["manual", "daily", "weekly"],
+        data_sources=[
+            "Salesforce Open Opportunities (stage, amount, probability, next step)",
+            "Salesforce Contacts (stakeholder coverage)",
+            "Salesforce Account Info (company context)",
+        ],
+        logic_steps=[
+            "Analyzes each open deal for risk factors and stakeholder gaps",
+            "LLM scores risk level per deal (low/medium/high/critical)",
+            "Identifies deals missing next steps as stalled",
+            "Detects competitive signals from deal descriptions",
+            "Recommends specific next-best-actions per deal",
+            "Highlights quick wins (low-effort, high-impact moves)",
+            "Falls back to rule-based stall detection if LLM unavailable",
+        ],
+        output_types=["Deal risk assessments", "Strategy recommendations", "Quick win identification"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:

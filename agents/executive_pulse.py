@@ -36,6 +36,23 @@ class ExecutivePulseAgent(BaseAgent):
         },
         capabilities=["executive_summary", "portfolio_health", "team_oversight"],
         schedule_options=["manual", "daily", "weekly"],
+        data_sources=[
+            "Local accounts database (health, tier, owner for all accounts)",
+            "Salesforce Cases (critical case counts per account)",
+            "Salesforce Open Opportunities (pipeline deal counts)",
+            "Salesforce Closed-Lost Opportunities (loss trends)",
+            "Salesforce Activities (engagement gaps per account)",
+        ],
+        logic_steps=[
+            "Sweeps ALL accounts in focus tiers (default: Tier 1 + Tier 2)",
+            "Aggregates health distribution: green/yellow/red counts",
+            "Identifies accounts with open critical/high cases",
+            "Flags Tier 1 accounts with no recent engagement (owner named)",
+            "Counts lost deals across portfolio for trend detection",
+            "Generates exception-only insights (only surfaces what needs attention)",
+            "Optionally pushes executive summary to Teams webhook",
+        ],
+        output_types=["Portfolio health overview", "Critical case alerts", "Engagement gap reports", "Loss trend alerts"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:
