@@ -203,15 +203,30 @@ class AccountPulseAgent(BaseAgent):
         # --- Engagement gaps ---
         activity_count = len(activities.records) if activities.records else 0
         if activity_count < 2:
-            also_found = []
             case_count = len(cases.records) if cases.records else 0
+
+            # Build a useful context summary of what WAS found
+            context_parts = []
             if case_count:
-                also_found.append(f"{case_count} case{'s' if case_count != 1 else ''}")
+                case_subjects = [c.get("Subject", "") for c in cases.records[:5] if c.get("Subject")]
+                open_case_list = [c for c in cases.records if c.get("Status", "").lower() not in ("closed", "resolved")]
+                context_parts.append(
+                    f"{case_count} support case{'s' if case_count != 1 else ''} ({case_open_count} open, {case_closed_count} closed)"
+                )
+                if case_subjects:
+                    preview = "; ".join(case_subjects[:3])
+                    if len(case_subjects) > 3:
+                        preview += f" (+{len(case_subjects) - 3} more)"
+                    context_parts.append(f"Recent topics: {preview}")
             if open_deals:
-                also_found.append(f"{open_deals} open deal{'s' if open_deals != 1 else ''}")
+                context_parts.append(f"{open_deals} open deal{'s' if open_deals != 1 else ''} in pipeline")
             if won_deals:
-                also_found.append(f"{won_deals} recent win{'s' if won_deals != 1 else ''}")
-            also_context = f" Also found: {', '.join(also_found)}." if also_found else " No cases or pipeline data found either."
+                context_parts.append(f"{won_deals} recent win{'s' if won_deals != 1 else ''}")
+
+            if context_parts:
+                also_context = " What Salesforce does show: " + ". ".join(context_parts) + "."
+            else:
+                also_context = " No cases, pipeline, or activity data found in Salesforce."
 
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
@@ -219,10 +234,10 @@ class AccountPulseAgent(BaseAgent):
                 account_name=account_name,
                 priority=Priority.MEDIUM,
                 title="Low engagement detected",
-                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.{also_context}",
-                detail={"activity_count": activity_count, "data_receipt": data_receipt},
-                sources=activities.sources,
-                logic_explanation=f"Queried Salesforce Tasks/Activities where Account matches and CreatedDate is within the last {days} days (limit 50). Threshold: fewer than 2 activities. Found {activity_count}. Also queried: Cases ({case_count} found), Open Opportunities ({open_deals} found), Closed-Won ({won_deals} found), Closed-Lost ({lost_deals_count} found).",
+                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} (logged calls, emails, tasks) in the last {days} days.{also_context}",
+                detail={"activity_count": activity_count, "case_subjects": [c.get("Subject", "") for c in (cases.records or [])[:10]], "data_receipt": data_receipt},
+                sources=(cases.sources or [])[:5] + (activities.sources or []),
+                logic_explanation=f"Queried Salesforce Tasks/Activities for this account over the last {days} days (limit 50). Found {activity_count} — threshold is 2. Note: activity data depends on reps logging interactions in Salesforce. Also queried: Cases ({case_count} found), Open Opps ({open_deals}), Closed-Won ({won_deals}), Closed-Lost ({lost_deals_count}).",
                 actions=[
                     {"label": "Prep Meeting", "action_type": "run_agent",
                      "params": {"agent": "meeting_prep", "account": account_name}},
