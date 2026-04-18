@@ -1167,7 +1167,9 @@ async def get_feed(request: Request):
     uid = user["id"] if user else "default"
     raw = get_insights(user_id=uid, limit=100)
     priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-    raw.sort(key=lambda i: (priority_order.get(i["priority"], 4), i["created_at"]))
+    # Sort: highest priority first, then newest first within each priority
+    raw.sort(key=lambda i: i.get("created_at", ""), reverse=True)
+    raw.sort(key=lambda i: priority_order.get(i["priority"], 4))
     return JSONResponse(raw)
 
 

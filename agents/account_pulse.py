@@ -203,16 +203,26 @@ class AccountPulseAgent(BaseAgent):
         # --- Engagement gaps ---
         activity_count = len(activities.records) if activities.records else 0
         if activity_count < 2:
+            also_found = []
+            case_count = len(cases.records) if cases.records else 0
+            if case_count:
+                also_found.append(f"{case_count} case{'s' if case_count != 1 else ''}")
+            if open_deals:
+                also_found.append(f"{open_deals} open deal{'s' if open_deals != 1 else ''}")
+            if won_deals:
+                also_found.append(f"{won_deals} recent win{'s' if won_deals != 1 else ''}")
+            also_context = f" Also found: {', '.join(also_found)}." if also_found else " No cases or pipeline data found either."
+
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
                 priority=Priority.MEDIUM,
                 title="Low engagement detected",
-                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.",
+                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.{also_context}",
                 detail={"activity_count": activity_count, "data_receipt": data_receipt},
                 sources=activities.sources,
-                logic_explanation=f"Queried Salesforce Tasks/Activities where Account.Name matches and CreatedDate is within the last {days} days (limit 50). Threshold for this alert: fewer than 2 activities. Found {activity_count}. This counts logged calls, emails, meetings, and tasks in Salesforce.",
+                logic_explanation=f"Queried Salesforce Tasks/Activities where Account matches and CreatedDate is within the last {days} days (limit 50). Threshold: fewer than 2 activities. Found {activity_count}. Also queried: Cases ({case_count} found), Open Opportunities ({open_deals} found), Closed-Won ({won_deals} found), Closed-Lost ({lost_deals_count} found).",
                 actions=[
                     {"label": "Prep Meeting", "action_type": "run_agent",
                      "params": {"agent": "meeting_prep", "account": account_name}},
