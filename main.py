@@ -131,6 +131,7 @@ def init_db():
     agent_migrations = [
         "ALTER TABLE accounts ADD COLUMN must_win INTEGER DEFAULT 0",
         "ALTER TABLE accounts ADD COLUMN priority_boost INTEGER DEFAULT 0",
+        "ALTER TABLE accounts ADD COLUMN salesforce_ids TEXT DEFAULT '[]'",
     ]
     for m in agent_migrations:
         try:
@@ -289,6 +290,7 @@ def row_to_account(row):
         "nextSteps": _safe_col(row, "next_steps", ""),
         "latestUpdate": _safe_col(row, "latest_update", ""),
         "actionItems": _safe_json(row["action_items"], []),
+        "salesforceIds": _safe_json(_safe_col(row, "salesforce_ids", "[]"), []),
         "contacts": contacts,
     }
 
@@ -315,8 +317,8 @@ def save_account(account_data: dict):
     cursor.execute('''
         INSERT OR REPLACE INTO accounts (id, name, tier, owner, health_sentiment, engagement_stage, next_qbr_date,
             qbr_q1, qbr_q2, qbr_q3, qbr_q4, qbr_milestones,
-            key_learnings, next_steps, latest_update, action_items, contacts)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            key_learnings, next_steps, latest_update, action_items, salesforce_ids, contacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         account_data["id"],
         account_data["name"],
@@ -334,6 +336,7 @@ def save_account(account_data: dict):
         account_data.get("nextSteps", ""),
         account_data.get("latestUpdate", ""),
         json.dumps(account_data.get("actionItems", [])),
+        json.dumps(account_data.get("salesforceIds", [])),
         json.dumps(account_data.get("contacts", []))
     ))
     conn.commit()
@@ -500,6 +503,23 @@ def _row_to_insight(row) -> dict:
         "created_at": row["created_at"],
         "expires_at": row["expires_at"],
     }
+
+
+def get_salesforce_ids_for_account(account_name: str) -> list[str]:
+    """Look up mapped Salesforce Account IDs for a tracker account."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT salesforce_ids FROM accounts WHERE name = ?", (account_name,))
+        row = cursor.fetchone()
+        if row:
+            ids = _safe_json(_safe_col(row, "salesforce_ids", "[]"), [])
+            return [i for i in ids if i]
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return []
 
 
 def get_must_win_accounts(user_id: str = "default") -> list[str]:

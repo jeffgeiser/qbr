@@ -185,66 +185,73 @@ class SalesforceMCPClient:
         return account_name
 
     # --- QBR-Specific Data Fetching Methods ---
+    # Each method accepts an optional account_filter parameter. When provided,
+    # it replaces the default Account.Name WHERE clause, enabling ID-based queries.
 
-    async def get_account_cases(self, account_name: str, days: int = 90) -> list[dict]:
-        """Fetch cases for an account within the given time range."""
+    def _acct_where(self, account_name: str, account_filter: str = "") -> str:
+        """Build the account WHERE clause. Uses account_filter if provided, else Account.Name."""
+        if account_filter:
+            return account_filter
+        return f"Account.Name = '{_escape(account_name)}'"
+
+    async def get_account_cases(self, account_name: str, days: int = 90, account_filter: str = "") -> list[dict]:
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return await self._query(
             "Case",
             ["Id", "CaseNumber", "Subject", "Status", "Priority",
              "CreatedDate", "ClosedDate", "Description", "ContactId", "Contact.Name"],
-            where=f"Account.Name = '{_escape(account_name)}' AND CreatedDate >= {since}",
+            where=f"{self._acct_where(account_name, account_filter)} AND CreatedDate >= {since}",
             order_by="CreatedDate DESC",
         )
 
-    async def get_open_opportunities(self, account_name: str) -> list[dict]:
-        """Fetch open opportunities for an account."""
+    async def get_open_opportunities(self, account_name: str, account_filter: str = "") -> list[dict]:
         return await self._query(
             "Opportunity",
             ["Id", "Name", "StageName", "Amount", "CloseDate", "Probability",
              "Description", "Type", "NextStep"],
-            where=f"Account.Name = '{_escape(account_name)}' AND IsClosed = false",
+            where=f"{self._acct_where(account_name, account_filter)} AND IsClosed = false",
             order_by="Amount DESC",
         )
 
-    async def get_closed_opportunities(self, account_name: str, days: int = 90) -> list[dict]:
-        """Fetch recently closed (won/lost) opportunities."""
+    async def get_closed_opportunities(self, account_name: str, days: int = 90, account_filter: str = "") -> list[dict]:
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return await self._query(
             "Opportunity",
             ["Id", "Name", "StageName", "Amount", "CloseDate", "IsWon",
              "Description", "Type"],
-            where=f"Account.Name = '{_escape(account_name)}' AND IsClosed = true AND CloseDate >= {since[:10]}",
+            where=f"{self._acct_where(account_name, account_filter)} AND IsClosed = true AND CloseDate >= {since[:10]}",
             order_by="CloseDate DESC",
         )
 
-    async def get_contacts(self, account_name: str) -> list[dict]:
-        """Fetch contacts for an account."""
+    async def get_contacts(self, account_name: str, account_filter: str = "") -> list[dict]:
         return await self._query(
             "Contact",
             ["Id", "Name", "Email", "Phone", "Title", "Department"],
-            where=f"Account.Name = '{_escape(account_name)}'",
+            where=f"{self._acct_where(account_name, account_filter)}",
             order_by="Name",
         )
 
-    async def get_activities(self, account_name: str, days: int = 90) -> list[dict]:
-        """Fetch recent tasks/activities for an account."""
+    async def get_activities(self, account_name: str, days: int = 90, account_filter: str = "") -> list[dict]:
         since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
         return await self._query(
             "Task",
             ["Id", "Subject", "Status", "ActivityDate", "Priority", "Description"],
-            where=f"Account.Name = '{_escape(account_name)}' AND CreatedDate >= {since}",
+            where=f"{self._acct_where(account_name, account_filter)} AND CreatedDate >= {since}",
             order_by="ActivityDate DESC",
             limit=50,
         )
 
-    async def get_account_info(self, account_name: str) -> list[dict]:
-        """Fetch the Salesforce account record itself."""
+    async def get_account_info(self, account_name: str, account_filter: str = "") -> list[dict]:
+        af = account_filter
+        if af:
+            af = af.replace("AccountId", "Id")
+        else:
+            af = f"Name = '{_escape(account_name)}'"
         return await self._query(
             "Account",
             ["Id", "Name", "Type", "Industry", "AnnualRevenue", "NumberOfEmployees",
              "Description", "OwnerId", "Owner.Name"],
-            where=f"Name = '{_escape(account_name)}'",
+            where=af,
             limit=1,
         )
 

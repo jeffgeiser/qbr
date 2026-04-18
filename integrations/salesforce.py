@@ -61,10 +61,24 @@ class SalesforceMCPConnector(IntegrationConnector):
                     error="Salesforce not connected",
                 )
 
-            account_name = await client.resolve_account_name(account_name)
+            # Check for mapped Salesforce Account IDs first
+            sf_ids = params.get("salesforce_ids") or []
+            if not sf_ids:
+                try:
+                    from main import get_salesforce_ids_for_account
+                    sf_ids = get_salesforce_ids_for_account(account_name)
+                except Exception:
+                    pass
+
+            if sf_ids:
+                af = self._build_id_filter(sf_ids)
+                logger.info(f"[SF] Using mapped Account IDs for '{account_name}': {sf_ids}")
+            else:
+                account_name = await client.resolve_account_name(account_name)
+                af = ""
 
             if intent in ("cases", "support_tickets"):
-                raw = await client.get_account_cases(account_name, days)
+                raw = await client.get_account_cases(account_name, days, account_filter=af)
                 records = client._parse_text_records(raw)
                 for r in records:
                     sources.append(self._make_source("Case", r, r.get("CaseNumber", "Case")))
@@ -72,31 +86,31 @@ class SalesforceMCPConnector(IntegrationConnector):
             elif intent in ("opportunities", "pipeline", "deals"):
                 status = params.get("status", "all")
                 if status == "open":
-                    raw = await client.get_open_opportunities(account_name)
+                    raw = await client.get_open_opportunities(account_name, account_filter=af)
                 elif status in ("won", "lost"):
-                    raw = await client.get_closed_opportunities(account_name, days)
+                    raw = await client.get_closed_opportunities(account_name, days, account_filter=af)
                 else:
-                    open_ops = await client.get_open_opportunities(account_name)
-                    closed_ops = await client.get_closed_opportunities(account_name, days)
+                    open_ops = await client.get_open_opportunities(account_name, account_filter=af)
+                    closed_ops = await client.get_closed_opportunities(account_name, days, account_filter=af)
                     raw = open_ops + closed_ops
                 records = client._parse_text_records(raw)
                 for r in records:
                     sources.append(self._make_source("Opportunity", r, r.get("Name", "Opportunity")))
 
             elif intent == "contacts":
-                raw = await client.get_contacts(account_name)
+                raw = await client.get_contacts(account_name, account_filter=af)
                 records = client._parse_text_records(raw)
                 for r in records:
                     sources.append(self._make_source("Contact", r, r.get("Name", "Contact")))
 
             elif intent in ("activities", "customer_interactions"):
-                raw = await client.get_activities(account_name, days)
+                raw = await client.get_activities(account_name, days, account_filter=af)
                 records = client._parse_text_records(raw)
                 for r in records:
                     sources.append(self._make_source("Task", r, r.get("Subject", "Activity")))
 
             elif intent == "account_info":
-                raw = await client.get_account_info(account_name)
+                raw = await client.get_account_info(account_name, account_filter=af)
                 records = client._parse_text_records(raw)
                 for r in records:
                     sources.append(self._make_source("Account", r, r.get("Name", account_name)))
@@ -125,6 +139,18 @@ class SalesforceMCPConnector(IntegrationConnector):
         except Exception as e:
             logger.error(f"Salesforce connector error: {e}", exc_info=True)
             return ConnectorResult(connector_name=self.name, intent=intent, error=str(e))
+
+    @staticmethod
+    def _build_id_filter(sf_ids: list[str]) -> str:
+        escaped = [sid.replace("'", "\\'") for sid in sf_ids if sid]
+        if len(escaped) == 1:
+            return f"AccountId = '{escaped[0]}'"
+        id_list = "','".join(escaped)
+        return f"AccountId IN ('{id_list}')"
+
+    @staticmethod
+    def _escape_soql(value: str) -> str:
+        return value.replace("'", "\\'")
 
     async def health_check(self) -> bool:
         return self._get_client().is_connected
