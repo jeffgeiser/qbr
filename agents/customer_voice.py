@@ -100,6 +100,7 @@ class CustomerVoiceAgent(BaseAgent):
                     {"label": "Generate Health Brief", "action_type": "generate_briefing",
                      "params": {"account_name": account_name, "type": "internal"}},
                 ],
+                logic_explanation=f"Queried Salesforce Cases for {account_name} over the last {days} days. Filtered for cases where Priority is 'Critical' or 'High' AND Status is not 'Closed' or 'Resolved'. Found {len(critical)} such cases, which meets or exceeds the escalation threshold of {ctx.config.get('escalation_threshold', 3)}. There are {len(open_cases)} total open cases and {len(closed_cases)} closed cases in this period.",
             ))
 
         # High volume signal
@@ -123,6 +124,7 @@ class CustomerVoiceAgent(BaseAgent):
                         {"label": "Run Health Brief", "action_type": "generate_briefing",
                          "params": {"account_name": account_name, "type": "internal"}},
                     ],
+                    logic_explanation=f"Queried Salesforce Cases for {account_name} over the last {days} days. Found {total} total cases (more than 10, the minimum to trigger this check). Calculated the open ratio: {len(open_cases)} open / {total} total = {int(ratio * 100)}%, which exceeds the 40% threshold. Cases are considered open if their Status is not 'Closed' or 'Resolved'.",
                 ))
 
         # Subject clustering — detect recurring themes
@@ -141,6 +143,7 @@ class CustomerVoiceAgent(BaseAgent):
                 detail={"recurring_themes": [{"theme": t, "count": c} for t, c in recurring[:5]]},
                 sources=cases.sources[:3],
                 actions=[],
+                logic_explanation=f"Analyzed the Subject field of all {total} Salesforce Cases for {account_name} over the last {days} days. Extracted significant keywords from each subject (filtering out common noise words), then counted how often each keyword appeared. Found {len(recurring)} keyword(s) that appeared in 3 or more case subjects, indicating a recurring pattern. Top keyword: \"{recurring[0][0]}\" appeared {recurring[0][1]} times.",
             ))
 
         if not insights:
@@ -152,6 +155,7 @@ class CustomerVoiceAgent(BaseAgent):
                 title="Support health normal",
                 summary=f"{account_name}: {total} cases in {days} days, {len(open_cases)} open. No unusual patterns detected.",
                 detail={"total": total, "open": len(open_cases), "closed": len(closed_cases)},
+                logic_explanation=f"Queried Salesforce Cases for {account_name} over the last {days} days and found {total} total cases ({len(open_cases)} open, {len(closed_cases)} closed). Checked three risk conditions: (1) critical/high open cases < threshold of {ctx.config.get('escalation_threshold', 3)} (found {len(critical)}), (2) open case ratio {'not checked — fewer than 10 total cases' if total <= 10 else f'{int(len(open_cases) / total * 100)}% is at or below 40%'}, (3) no keywords appeared in 3+ case subjects. None of the risk thresholds were triggered.",
             ))
 
         return insights

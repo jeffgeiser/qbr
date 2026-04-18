@@ -76,6 +76,7 @@ class AccountDigestAgent(BaseAgent):
                 summary=self._build_summary_text(account_summaries),
                 detail={"accounts": account_summaries, "period": period},
                 actions=[],
+                logic_explanation=f"For each account in scope, queried Salesforce Cases (new and open counts), Open Opportunities (deal count), and Activities (engagement volume) over the last {context.time_range_days} days. {len(account_summaries)} out of {len(context.account_names)} account(s) had at least one change detected. Cases with Priority 'Critical' or 'High' that are not 'Closed' or 'Resolved' are flagged as alerts. This digest aggregates all three data sources into a single summary per account.",
             ))
 
             if webhook_url:

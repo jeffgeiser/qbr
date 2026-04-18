@@ -101,6 +101,7 @@ class InsightCard:
     detail: dict = field(default_factory=dict)
     sources: list[SourceObject] = field(default_factory=list)
     actions: list[dict] = field(default_factory=list)
+    logic_explanation: str = ""
     status: InsightStatus = InsightStatus.UNREAD
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     expires_at: str = ""
@@ -118,6 +119,7 @@ class InsightCard:
             "detail": self.detail,
             "sources": [s.to_dict() for s in self.sources],
             "actions": self.actions,
+            "logic_explanation": self.logic_explanation,
             "status": self.status.value if isinstance(self.status, InsightStatus) else self.status,
             "created_at": self.created_at,
             "expires_at": self.expires_at,

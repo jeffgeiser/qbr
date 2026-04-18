@@ -75,6 +75,7 @@ class QBRComposerAgent(BaseAgent):
                             {"label": "View Briefing", "action_type": "view_briefing",
                              "params": {"account_name": account_name, "type": briefing_type}},
                         ],
+                        logic_explanation=f"Fetched 5 data types from Salesforce (Account Info, Cases, Open/Closed Opportunities, Contacts, Activities) for {account_name} over the last {context.time_range_days} days. An LLM (tool-use loop, up to 10 iterations) chose which Salesforce queries to run, gathered the data, then synthesized it into a structured {'internal health brief with risk scoring and health scorecard' if briefing_type == 'internal' else 'customer-facing QBR with performance metrics and joint action plan'}.",
                     ))
                 else:
                     errors.append(f"No briefing produced for {account_name}")
