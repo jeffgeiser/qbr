@@ -599,6 +599,8 @@ def _register_agents_and_connectors():
     from agents.news_monitor import NewsMonitorAgent
     from agents.account_digest import AccountDigestAgent
     from agents.executive_pulse import ExecutivePulseAgent
+    from agents.se_pipeline import SEPipelineAgent
+    from agents.deal_close_notifier import DealCloseNotifierAgent
     registry.register(AccountPulseAgent)
     registry.register(QBRComposerAgent)
     registry.register(MeetingPrepAgent)
@@ -607,6 +609,8 @@ def _register_agents_and_connectors():
     registry.register(NewsMonitorAgent)
     registry.register(AccountDigestAgent)
     registry.register(ExecutivePulseAgent)
+    registry.register(SEPipelineAgent)
+    registry.register(DealCloseNotifierAgent)
 
     from integrations.hub import hub
     from integrations.salesforce import SalesforceMCPConnector

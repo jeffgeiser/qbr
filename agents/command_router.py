@@ -39,6 +39,8 @@ Available agents:
 - news_monitor: Industry news about customer companies. Use when user asks about news, press, industry updates, or what's happening publicly with a company.
 - account_digest: Summary of changes across accounts. Use when user asks for a digest, weekly summary, recap, or wants to send a Teams notification.
 - executive_pulse: Portfolio-wide health for leadership. Use when user asks about overall portfolio, all accounts, team performance, or executive summary.
+- se_pipeline: SE pipeline tracking — active POCs, pipeline by SE, recent wins by SE. Use when user asks about POCs, SE pipeline, SE deals, or SE activity.
+- deal_close_notifier: Recent deal wins. Use when user asks about recent closes, new wins, deals won today/this week.
 
 Extract the following as JSON:
 {
@@ -111,6 +113,10 @@ def _heuristic_parse(user_message: str) -> CommandIntent:
         agent_id = "account_digest"
     elif any(w in msg for w in ("portfolio", "all accounts", "executive", "leadership", "overview", "aggregate")):
         agent_id = "executive_pulse"
+    elif any(w in msg for w in ("poc", "se pipeline", "solution engineer", "se deals", "se activity")):
+        agent_id = "se_pipeline"
+    elif any(w in msg for w in ("closed today", "won today", "new wins", "recent wins", "deal close", "deals closed")):
+        agent_id = "deal_close_notifier"
     else:
         agent_id = "account_pulse"
 
