@@ -11,6 +11,7 @@ Designed for EVP/VP of Sales. Aggregates across ALL accounts to surface:
 Optionally pushes to a Teams webhook for async delivery.
 """
 
+import os
 import logging
 from core.agent_runtime import BaseAgent, AgentBlueprint
 from core.models import AgentContext, AgentResult, InsightCard, Priority
@@ -207,20 +208,57 @@ class ExecutivePulseAgent(BaseAgent):
     async def _push_to_teams(self, webhook_url: str, stats: dict,
                              insights: list[InsightCard]):
         try:
-            from integrations.teams_webhook import send_teams_message, format_executive_card
+            from integrations.teams_webhook import send_teams_message
 
-            metrics = {
-                "Total Accounts": stats["total_accounts"],
-                "Health (G/Y/R)": f"{stats['health'].get('green', 0)} / {stats['health'].get('yellow', 0)} / {stats['health'].get('red', 0)}",
-                "Active Pipeline Deals": stats["total_pipeline_deals"],
-            }
+            metrics_facts = [
+                {"name": "Total Accounts", "value": str(stats["total_accounts"])},
+                {"name": "Health (G/Y/R)", "value": f"{stats['health'].get('green', 0)} / {stats['health'].get('yellow', 0)} / {stats['health'].get('red', 0)}"},
+                {"name": "Active Pipeline Deals", "value": str(stats["total_pipeline_deals"])},
+            ]
 
-            highlights = [i.title for i in insights if i.priority == Priority.INFO]
-            risks = [i.title for i in insights if i.priority in (Priority.HIGH, Priority.CRITICAL)]
+            sections = [
+                {"activityTitle": "Portfolio Metrics", "facts": metrics_facts, "markdown": True},
+            ]
 
-            title, summary, sections = format_executive_card(
-                "Executive Portfolio Pulse", metrics, highlights, risks
-            )
-            await send_teams_message(webhook_url, title, summary, sections, theme_color="5B5FC7")
+            # Build detailed risk sections with account names and owners
+            critical_accts = stats.get("accounts_with_critical_cases", [])
+            if critical_accts:
+                lines = [f"**{a['name']}** ({a['tier']}) — {a['critical_count']} critical case{'s' if a['critical_count'] != 1 else ''}" for a in critical_accts[:8]]
+                sections.append({
+                    "activityTitle": f"Support Escalation Risk — {len(critical_accts)} Account{'s' if len(critical_accts) != 1 else ''}",
+                    "text": "\n\n".join(lines),
+                    "markdown": True,
+                })
+
+            inactive = stats.get("accounts_with_no_activity", [])
+            tier1_inactive = [a for a in inactive if a["tier"] == "Tier 1"]
+            if tier1_inactive:
+                lines = [f"**{a['name']}** — owner: {a.get('owner', 'unassigned')}" for a in tier1_inactive[:10]]
+                sections.append({
+                    "activityTitle": f"Tier 1 Engagement Gaps — {len(tier1_inactive)} Account{'s' if len(tier1_inactive) != 1 else ''}",
+                    "text": "\n\n".join(lines),
+                    "markdown": True,
+                })
+
+            lost_accts = stats.get("accounts_with_lost_deals", [])
+            if lost_accts:
+                total_lost = sum(a["lost_count"] for a in lost_accts)
+                lines = [f"**{a['name']}** — {a['lost_count']} deal{'s' if a['lost_count'] != 1 else ''} lost" for a in lost_accts[:8]]
+                sections.append({
+                    "activityTitle": f"Lost Deals — {total_lost} Across {len(lost_accts)} Account{'s' if len(lost_accts) != 1 else ''}",
+                    "text": "\n\n".join(lines),
+                    "markdown": True,
+                })
+
+            # Link back to workbench
+            workbench_url = os.environ.get("APP_BASE_URL", "")
+            if workbench_url:
+                sections.append({
+                    "text": f"[Open Agent Workbench]({workbench_url}/qbr/workbench)",
+                    "markdown": True,
+                })
+
+            summary = f"{stats['total_accounts']} accounts — {stats['health'].get('red', 0)} at risk"
+            await send_teams_message(webhook_url, "Executive Portfolio Pulse", summary, sections, theme_color="5B5FC7")
         except Exception as e:
             logger.error(f"Executive Teams push failed: {e}")
