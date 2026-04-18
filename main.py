@@ -599,6 +599,8 @@ def _register_agents_and_connectors():
     from agents.news_monitor import NewsMonitorAgent
     from agents.account_digest import AccountDigestAgent
     from agents.executive_pulse import ExecutivePulseAgent
+    from agents.se_pipeline import SEPipelineAgent
+    from agents.deal_close_notifier import DealCloseNotifierAgent
     registry.register(AccountPulseAgent)
     registry.register(QBRComposerAgent)
     registry.register(MeetingPrepAgent)
@@ -607,6 +609,8 @@ def _register_agents_and_connectors():
     registry.register(NewsMonitorAgent)
     registry.register(AccountDigestAgent)
     registry.register(ExecutivePulseAgent)
+    registry.register(SEPipelineAgent)
+    registry.register(DealCloseNotifierAgent)
 
     from integrations.hub import hub
     from integrations.salesforce import SalesforceMCPConnector
@@ -1167,7 +1171,9 @@ async def get_feed(request: Request):
     uid = user["id"] if user else "default"
     raw = get_insights(user_id=uid, limit=100)
     priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-    raw.sort(key=lambda i: (priority_order.get(i["priority"], 4), i["created_at"]))
+    # Sort: highest priority first, then newest first within each priority
+    raw.sort(key=lambda i: i.get("created_at", ""), reverse=True)
+    raw.sort(key=lambda i: priority_order.get(i["priority"], 4))
     return JSONResponse(raw)
 
 

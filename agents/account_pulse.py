@@ -1,8 +1,10 @@
 """
-Account Pulse Agent - Continuous health monitoring across accounts.
+Account Pulse Agent - Case-centric health monitoring.
 
-Fetches Salesforce data, detects risk signals, engagement gaps,
-and pipeline anomalies. Emits prioritized InsightCards.
+Primary signal: Salesforce Cases (volume, severity, open/closed ratio,
+subject patterns). Secondary: Pipeline (wins, losses, stalled deals).
+Activity data is noted but not weighted heavily since it depends on
+reps logging interactions in Salesforce.
 """
 
 import logging
@@ -18,36 +20,35 @@ class AccountPulseAgent(BaseAgent):
     blueprint = AgentBlueprint(
         id="account_pulse",
         name="Account Pulse",
-        description="Continuous health monitoring across your accounts. Surfaces risk signals, engagement gaps, and pipeline changes proactively.",
+        description="Case-centric account health monitoring. Analyzes support cases, pipeline movement, and deal status to assess account sentiment.",
         category="intelligence",
         icon="pulse",
         color="emerald",
         required_integrations=["salesforce"],
         default_config={
-            "health_threshold": 3,
-            "alert_on_critical_cases": True,
-            "alert_on_pipeline_changes": True,
-            "alert_on_engagement_gaps": True,
+            "critical_case_threshold": 1,
+            "high_volume_threshold": 5,
+            "open_ratio_warning": 0.5,
         },
         capabilities=["health_monitoring", "risk_detection", "trend_analysis"],
         schedule_options=["manual", "hourly", "daily", "weekly"],
         data_sources=[
-            "Salesforce Cases (open/closed, priority, status)",
+            "Salesforce Cases — primary signal (subject, status, priority, dates)",
             "Salesforce Open Opportunities (stage, amount, next step)",
             "Salesforce Closed-Won Opportunities (recent wins)",
             "Salesforce Closed-Lost Opportunities (recent losses)",
-            "Salesforce Activities/Tasks (engagement volume)",
+            "Salesforce Activities/Tasks (noted but low-weight — depends on rep logging)",
         ],
         logic_steps=[
-            "Flags critical/high priority cases that are still open",
-            "Alerts if more than 5 cases are open simultaneously",
+            "Computes case health: open/closed ratio, critical case count, subject themes",
+            "Derives account sentiment from case patterns (healthy/caution/concern)",
             "Surfaces recent closed-won deals as positive momentum",
             "Flags recently lost deals for competitive review",
             "Identifies stalled deals (open with no defined next step)",
-            "Detects engagement gaps (fewer than 2 activities in time range)",
+            "Produces an overall health summary card with case details",
             "Boosts priority for accounts marked as must-win",
         ],
-        output_types=["Risk alerts", "Momentum signals", "Engagement warnings", "Stable status with evidence"],
+        output_types=["Account health summary", "Risk alerts", "Momentum signals"],
     )
 
     async def run(self, context: AgentContext) -> AgentResult:
@@ -82,185 +83,194 @@ class AccountPulseAgent(BaseAgent):
         activities = await hub.query("activities", params, "salesforce")
 
         all_sources = ((cases.sources or []) + (open_opps.sources or []) +
-                       (won_opps.sources or []) + (lost_opps.sources or []) +
-                       (activities.sources or []))
+                       (won_opps.sources or []) + (lost_opps.sources or []))
+
+        # --- Compute case metrics ---
+        case_total = len(cases.records) if cases.records else 0
+        open_cases = [c for c in (cases.records or []) if c.get("Status", "").lower() not in ("closed", "resolved")]
+        closed_cases = [c for c in (cases.records or []) if c.get("Status", "").lower() in ("closed", "resolved")]
+        critical_open = [c for c in open_cases if c.get("Priority", "").lower() in ("critical", "high")]
+        case_open_count = len(open_cases)
+        case_closed_count = len(closed_cases)
+        open_ratio = case_open_count / case_total if case_total > 0 else 0
+        case_subjects = [c.get("Subject", "") for c in (cases.records or [])[:10] if c.get("Subject")]
+
+        # --- Compute pipeline metrics ---
+        open_deals = len(open_opps.records) if open_opps.records else 0
+        won_deals = len(won_opps.records) if won_opps.records else 0
+        lost_deals_count = len(lost_opps.records) if lost_opps.records else 0
+        stalled_deals = [o for o in (open_opps.records or []) if not o.get("NextStep")]
+        activity_count = len(activities.records) if activities.records else 0
+
         data_receipt = {
             "sources_checked": [
-                "Salesforce Cases", "Salesforce Open Opportunities",
+                "Salesforce Cases (primary)", "Salesforce Open Opportunities",
                 "Salesforce Closed-Won", "Salesforce Closed-Lost",
-                "Salesforce Activities",
+                "Salesforce Activities (low-weight)",
             ],
-            "cases_found": len(cases.records) if cases.records else 0,
-            "open_opportunities": len(open_opps.records) if open_opps.records else 0,
-            "closed_won": len(won_opps.records) if won_opps.records else 0,
-            "closed_lost": len(lost_opps.records) if lost_opps.records else 0,
-            "activities_found": len(activities.records) if activities.records else 0,
+            "cases_total": case_total, "cases_open": case_open_count,
+            "cases_closed": case_closed_count, "cases_critical_open": len(critical_open),
+            "open_ratio": round(open_ratio, 2),
+            "open_opportunities": open_deals, "closed_won": won_deals,
+            "closed_lost": lost_deals_count, "stalled_deals": len(stalled_deals),
+            "activities": activity_count,
             "salesforce_connected": not bool(cases.error),
             "time_range_days": days,
         }
 
-        case_open_count = 0
-        case_closed_count = 0
+        # --- Determine account sentiment from cases ---
+        sentiment = "healthy"
+        sentiment_reasons = []
 
-        # --- Support health ---
-        if cases.records:
-            critical = [c for c in cases.records
-                        if c.get("Priority", "").lower() in ("critical", "high")
-                        and c.get("Status", "").lower() not in ("closed", "resolved")]
-            if critical:
-                insights.append(InsightCard(
-                    agent_instance_id=ctx.instance_id,
-                    agent_blueprint_id=self.blueprint.id,
-                    account_name=account_name,
-                    priority=Priority.HIGH,
-                    title=f"{len(critical)} critical case{'s' if len(critical) != 1 else ''} open",
-                    summary=f"{account_name} has {len(critical)} high/critical priority support cases requiring attention.",
-                    detail={"critical_cases": critical[:5], "data_receipt": data_receipt},
-                    sources=cases.sources[:5],
-                    logic_explanation=f"Queried Salesforce Cases where Account.Name matches and CreatedDate is within the last {days} days. Filtered for cases with Priority = 'Critical' or 'High' AND Status is not 'Closed' or 'Resolved'. Found {len(critical)} matching cases.",
-                    actions=[
-                        {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
-                        {"label": "Generate Health Brief", "action_type": "generate_briefing",
-                         "params": {"account_name": account_name, "type": "internal"}},
-                    ],
-                ))
+        if len(critical_open) >= ctx.config.get("critical_case_threshold", 1):
+            sentiment = "concern"
+            sentiment_reasons.append(f"{len(critical_open)} critical/high priority case{'s' if len(critical_open) != 1 else ''} open")
 
-            case_open_count = len([c for c in cases.records
-                             if c.get("Status", "").lower() not in ("closed", "resolved")])
-            case_closed_count = len(cases.records) - case_open_count
-            if case_open_count > 5:
-                insights.append(InsightCard(
-                    agent_instance_id=ctx.instance_id,
-                    agent_blueprint_id=self.blueprint.id,
-                    account_name=account_name,
-                    priority=Priority.MEDIUM,
-                    title=f"High case volume: {case_open_count} open tickets",
-                    summary=f"{account_name} has {case_open_count} open and {case_closed_count} closed cases in the last {days} days.",
-                    detail={"open_count": case_open_count, "closed_count": case_closed_count, "data_receipt": data_receipt},
-                    sources=cases.sources[:3],
-                    logic_explanation=f"Queried all Salesforce Cases for this account in the last {days} days. Counted cases where Status is not 'Closed' or 'Resolved'. Threshold for this alert: more than 5 open cases. Found {case_open_count} open out of {len(cases.records)} total.",
-                    actions=[
-                        {"label": "Run Health Brief", "action_type": "generate_briefing",
-                         "params": {"account_name": account_name, "type": "internal"}},
-                    ],
-                ))
+        if case_open_count > ctx.config.get("high_volume_threshold", 5):
+            if sentiment != "concern":
+                sentiment = "caution"
+            sentiment_reasons.append(f"{case_open_count} cases still open (high volume)")
 
-        # --- Pipeline health & momentum ---
-        open_deals = len(open_opps.records) if open_opps.records else 0
-        won_deals = len(won_opps.records) if won_opps.records else 0
-        lost_deals_count = len(lost_opps.records) if lost_opps.records else 0
+        if open_ratio > ctx.config.get("open_ratio_warning", 0.5) and case_total > 3:
+            if sentiment != "concern":
+                sentiment = "caution"
+            sentiment_reasons.append(f"{int(open_ratio * 100)}% of cases unresolved")
+
+        if lost_deals_count > 0:
+            if sentiment == "healthy":
+                sentiment = "caution"
+            sentiment_reasons.append(f"{lost_deals_count} deal{'s' if lost_deals_count != 1 else ''} lost recently")
 
         if won_deals > 0:
+            sentiment_reasons.append(f"{won_deals} deal{'s' if won_deals != 1 else ''} won (positive)")
+
+        if not sentiment_reasons and case_total == 0 and open_deals == 0:
+            sentiment_reasons.append("No case or pipeline data found in Salesforce")
+
+        # --- Build subject preview ---
+        subject_preview = ""
+        if case_subjects:
+            preview_items = case_subjects[:4]
+            subject_preview = "; ".join(preview_items)
+            if len(case_subjects) > 4:
+                subject_preview += f" (+{len(case_subjects) - 4} more)"
+
+        # --- Primary card: Account Health Summary ---
+        sentiment_priority = {
+            "concern": Priority.HIGH,
+            "caution": Priority.MEDIUM,
+            "healthy": Priority.INFO,
+        }
+
+        summary_parts = []
+        if case_total > 0:
+            summary_parts.append(f"{case_total} cases ({case_open_count} open, {case_closed_count} closed)")
+            if subject_preview:
+                summary_parts.append(f"Topics: {subject_preview}")
+        else:
+            summary_parts.append("No support cases in this period")
+
+        if open_deals:
+            summary_parts.append(f"{open_deals} active pipeline deal{'s' if open_deals != 1 else ''}")
+        if won_deals:
+            summary_parts.append(f"{won_deals} closed-won")
+        if lost_deals_count:
+            summary_parts.append(f"{lost_deals_count} closed-lost")
+        if len(stalled_deals) > 0:
+            summary_parts.append(f"{len(stalled_deals)} deal{'s' if len(stalled_deals) != 1 else ''} stalled (no next step)")
+
+        title_sentiment = {"concern": "Needs attention", "caution": "Monitor", "healthy": "Healthy"}
+
+        insights.append(InsightCard(
+            agent_instance_id=ctx.instance_id,
+            agent_blueprint_id=self.blueprint.id,
+            account_name=account_name,
+            priority=sentiment_priority[sentiment],
+            title=f"{title_sentiment[sentiment]} — {account_name}",
+            summary=". ".join(summary_parts) + ".",
+            detail={
+                "sentiment": sentiment,
+                "sentiment_reasons": sentiment_reasons,
+                "case_subjects": case_subjects,
+                "critical_cases": [{"CaseNumber": c.get("CaseNumber", ""), "Subject": c.get("Subject", ""), "Priority": c.get("Priority", ""), "Status": c.get("Status", "")} for c in critical_open[:5]],
+                "stalled_deals": [{"Name": o.get("Name", ""), "StageName": o.get("StageName", ""), "Amount": o.get("Amount", "")} for o in stalled_deals[:5]],
+                "data_receipt": data_receipt,
+            },
+            sources=all_sources[:8],
+            logic_explanation=self._build_logic_explanation(sentiment, data_receipt, days, ctx.config),
+            actions=[
+                {"label": "Generate Full Brief", "action_type": "generate_briefing",
+                 "params": {"account_name": account_name, "type": "internal"}},
+                {"label": "Meeting Prep", "action_type": "run_agent",
+                 "params": {"agent": "meeting_prep", "account": account_name}},
+            ],
+        ))
+
+        # --- Secondary cards for specific critical alerts ---
+        if len(critical_open) > 0:
+            crit_subjects = [f"{c.get('CaseNumber', '?')}: {c.get('Subject', 'No subject')}" for c in critical_open[:5]]
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
-                priority=Priority.INFO,
-                title=f"{won_deals} deal{'s' if won_deals != 1 else ''} closed-won recently",
-                summary=f"{account_name} closed {won_deals} deal{'s' if won_deals != 1 else ''} in the last {days} days. Positive revenue momentum.",
-                detail={"won_deals": (won_opps.records or [])[:5], "data_receipt": data_receipt},
-                sources=won_opps.sources[:5],
-                logic_explanation=f"Queried Salesforce Opportunities where Account.Name matches, IsClosed = true, and CloseDate is within the last {days} days. Filtered for won deals (IsWon = true). Found {won_deals}.",
+                priority=Priority.HIGH,
+                title=f"{len(critical_open)} critical case{'s' if len(critical_open) != 1 else ''} requiring action",
+                summary="; ".join(crit_subjects),
+                detail={"critical_cases": critical_open[:5], "data_receipt": data_receipt},
+                sources=cases.sources[:5],
+                logic_explanation=f"Salesforce Cases with Priority = 'Critical' or 'High' AND Status not 'Closed'/'Resolved'. Found {len(critical_open)} in the last {days} days.",
                 actions=[
                     {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
                 ],
             ))
 
         if lost_deals_count > 0:
+            lost_names = [o.get("Name", "Unknown") for o in (lost_opps.records or [])[:5]]
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
                 priority=Priority.HIGH,
-                title=f"{lost_deals_count} deal{'s' if lost_deals_count != 1 else ''} lost recently",
-                summary=f"{account_name} lost {lost_deals_count} opportunity(ies) in the last {days} days. Review for pattern or competitive displacement.",
+                title=f"{lost_deals_count} deal{'s' if lost_deals_count != 1 else ''} lost",
+                summary=f"Lost: {'; '.join(lost_names)}. Review for competitive displacement or relationship issues.",
                 detail={"lost_deals": (lost_opps.records or [])[:5], "data_receipt": data_receipt},
                 sources=lost_opps.sources[:5],
-                logic_explanation=f"Queried Salesforce Opportunities where Account.Name matches, IsClosed = true, and CloseDate is within the last {days} days. Filtered for lost deals (IsWon = false). Found {lost_deals_count}.",
+                logic_explanation=f"Salesforce Opportunities where IsClosed = true, IsWon = false, CloseDate within last {days} days. Found {lost_deals_count}.",
                 actions=[
                     {"label": "View Pipeline", "action_type": "source_link", "params": {}},
                 ],
             ))
 
-        if open_opps.records:
-            stalled = [o for o in open_opps.records if not o.get("NextStep")]
-            if stalled:
-                insights.append(InsightCard(
-                    agent_instance_id=ctx.instance_id,
-                    agent_blueprint_id=self.blueprint.id,
-                    account_name=account_name,
-                    priority=Priority.MEDIUM,
-                    title=f"{len(stalled)} stalled deal{'s' if len(stalled) != 1 else ''}",
-                    summary=f"{account_name} has {len(stalled)} open opportunities with no defined next step.",
-                    detail={"stalled_deals": stalled[:5], "data_receipt": data_receipt},
-                    sources=open_opps.sources[:5],
-                    logic_explanation=f"Queried Salesforce Opportunities where IsClosed = false. Checked each open deal for the 'NextStep' field. Deals with no NextStep value are flagged as stalled. Found {len(stalled)} out of {open_deals} open deals without a next step.",
-                    actions=[
-                        {"label": "View Pipeline", "action_type": "source_link", "params": {}},
-                    ],
-                ))
-
-        # --- Engagement gaps ---
-        activity_count = len(activities.records) if activities.records else 0
-        if activity_count < 2:
-            insights.append(InsightCard(
-                agent_instance_id=ctx.instance_id,
-                agent_blueprint_id=self.blueprint.id,
-                account_name=account_name,
-                priority=Priority.MEDIUM,
-                title="Low engagement detected",
-                summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.",
-                detail={"activity_count": activity_count, "data_receipt": data_receipt},
-                sources=activities.sources,
-                logic_explanation=f"Queried Salesforce Tasks/Activities where Account.Name matches and CreatedDate is within the last {days} days (limit 50). Threshold for this alert: fewer than 2 activities. Found {activity_count}. This counts logged calls, emails, meetings, and tasks in Salesforce.",
-                actions=[
-                    {"label": "Prep Meeting", "action_type": "run_agent",
-                     "params": {"agent": "meeting_prep", "account": account_name}},
-                ],
-            ))
-
-        # --- Stable / all-clear (with evidence of what was checked) ---
-        if not insights:
-            summary_parts = []
-            if cases.records:
-                summary_parts.append(f"{len(cases.records)} cases ({case_open_count} open, {case_closed_count} closed)")
-            else:
-                summary_parts.append("0 cases")
-            if open_deals:
-                summary_parts.append(f"{open_deals} active deal{'s' if open_deals != 1 else ''}")
-            else:
-                summary_parts.append("no open pipeline")
-            if won_deals:
-                summary_parts.append(f"{won_deals} recent win{'s' if won_deals != 1 else ''}")
-            if lost_deals_count:
-                summary_parts.append(f"{lost_deals_count} recent loss{'es' if lost_deals_count != 1 else ''}")
-            summary_parts.append(f"{activity_count} activit{'ies' if activity_count != 1 else 'y'}")
-
-            total_records = (len(cases.records or []) + open_deals + won_deals +
-                           lost_deals_count + activity_count)
-            if total_records == 0:
-                if cases.error or open_opps.error:
-                    source_note = "Salesforce returned no data — connector may be down or account name may not match."
-                else:
-                    source_note = f"No Salesforce records found for this account in the last {days} days."
-                summary_text = f"{account_name}: {source_note}"
-            else:
-                summary_text = f"{account_name} — checked {', '.join(summary_parts)} over the last {days} days. No critical risks, stalled deals, or engagement gaps detected."
-
+        if won_deals > 0:
+            won_names = [o.get("Name", "Unknown") for o in (won_opps.records or [])[:5]]
             insights.append(InsightCard(
                 agent_instance_id=ctx.instance_id,
                 agent_blueprint_id=self.blueprint.id,
                 account_name=account_name,
                 priority=Priority.INFO,
-                title="Stable — no action needed",
-                summary=summary_text,
-                detail={"data_receipt": data_receipt},
-                sources=all_sources[:5],
-                logic_explanation=f"Ran 5 Salesforce queries (Cases, Open Opps, Closed-Won, Closed-Lost, Activities) for the last {days} days. None of the alert thresholds were triggered: no critical/high cases open, fewer than 5 open cases, no lost deals, no stalled deals (all have NextStep), and 2+ activities logged.",
-                actions=[
-                    {"label": "Generate Full Brief", "action_type": "generate_briefing",
-                     "params": {"account_name": account_name, "type": "internal"}},
-                ],
+                title=f"{won_deals} deal{'s' if won_deals != 1 else ''} closed-won",
+                summary=f"Won: {'; '.join(won_names)}. Positive revenue momentum.",
+                detail={"won_deals": (won_opps.records or [])[:5], "data_receipt": data_receipt},
+                sources=won_opps.sources[:5],
+                logic_explanation=f"Salesforce Opportunities where IsClosed = true, IsWon = true, CloseDate within last {days} days. Found {won_deals}.",
+                actions=[],
             ))
 
         return insights
+
+    def _build_logic_explanation(self, sentiment: str, receipt: dict, days: int, config: dict) -> str:
+        parts = [
+            f"Assessed account health over the last {days} days using Salesforce data.",
+            f"Cases (primary signal): {receipt['cases_total']} total, {receipt['cases_open']} open, {receipt['cases_closed']} closed, {receipt['cases_critical_open']} critical/high open.",
+        ]
+        if receipt["cases_total"] > 0:
+            parts.append(f"Open ratio: {receipt['open_ratio']:.0%} (warning threshold: {config.get('open_ratio_warning', 0.5):.0%}).")
+        parts.append(
+            f"Pipeline: {receipt['open_opportunities']} open deals, {receipt['closed_won']} won, {receipt['closed_lost']} lost, {receipt['stalled_deals']} stalled."
+        )
+        parts.append(
+            f"Activities: {receipt['activities']} found (low-weight signal — depends on rep logging in SF)."
+        )
+        sentiment_labels = {"concern": "Concern (action needed)", "caution": "Caution (monitor)", "healthy": "Healthy"}
+        parts.append(f"Derived sentiment: {sentiment_labels.get(sentiment, sentiment)}.")
+        return " ".join(parts)
