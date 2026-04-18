@@ -296,7 +296,21 @@
                                 <span class="text-slate-300">&middot;</span>
                                 <span class="text-xs font-medium text-slate-700" x-text="insight.account_name"></span>
                             </div>
-                            <h3 class="text-sm font-semibold text-slate-900 mb-1" x-text="insight.title"></h3>
+                            <div class="flex items-center space-x-1.5 mb-1">
+                                <h3 class="text-sm font-semibold text-slate-900" x-text="insight.title"></h3>
+                                <template x-if="insight.logic_explanation">
+                                    <div class="relative group/logic flex-shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-slate-400 hover:text-indigo-500 cursor-help transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+                                        </svg>
+                                        <div class="hidden group-hover/logic:block absolute left-0 top-6 z-30 w-80 bg-slate-800 text-white text-[11px] leading-relaxed rounded-lg p-3 shadow-xl"
+                                             @click.stop="">
+                                            <div class="font-semibold text-slate-300 mb-1">How this was determined</div>
+                                            <p x-text="insight.logic_explanation" class="text-slate-200"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
                             <p class="text-sm text-slate-600 leading-relaxed" x-text="insight.summary"></p>
 
                             <!-- Expanded: sources + actions -->

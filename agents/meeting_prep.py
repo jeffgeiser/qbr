@@ -115,6 +115,7 @@ class MeetingPrepAgent(BaseAgent):
                             {"label": "Generate QBR", "action_type": "generate_briefing",
                              "params": {"account_name": account_name, "type": "customer"}},
                         ],
+                        logic_explanation=f"Fetched 5 Salesforce data types for {account_name} over the last {context.time_range_days} days: Cases (up to 10), Opportunities (up to 10), Contacts (up to 10), Activities (up to 10), and Account Info (up to 5 records). This data was sent to an LLM which synthesized it into a structured meeting brief with talking points, landmines to avoid, and recommended asks. If the LLM was unavailable, a rule-based fallback was used to extract key data points directly.",
                     ))
                 else:
                     errors.append(f"Could not generate prep for {account_name}")

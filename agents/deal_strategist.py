@@ -123,6 +123,7 @@ class DealStrategistAgent(BaseAgent):
                 summary=f"{account_name} has no open opportunities. Consider prospecting for new deals.",
                 actions=[{"label": "Prep Outreach", "action_type": "run_agent",
                           "params": {"agent": "meeting_prep", "account": account_name}}],
+                logic_explanation=f"Queried Salesforce Opportunities for {account_name} over the last {days} days. The query returned zero open opportunity records, meaning there is no active pipeline for this account in the selected time range.",
             ))
             return insights
 
@@ -151,6 +152,7 @@ class DealStrategistAgent(BaseAgent):
                         {"label": "Prep Meeting", "action_type": "run_agent",
                          "params": {"agent": "meeting_prep", "account": account_name}},
                     ],
+                    logic_explanation=f"Fetched Salesforce Opportunities (up to 15), Contacts (up to 10), and Account Info for {account_name}. Sent this data to an LLM which analyzed each deal's stage, amount, probability, and next steps, then scored risk as low/medium/high/critical. {len(high_risk)} deal(s) were scored 'high' or 'critical' risk out of {len(deals)} total deals analyzed.",
                 ))
             else:
                 insights.append(InsightCard(
@@ -163,6 +165,7 @@ class DealStrategistAgent(BaseAgent):
                     detail=strategy,
                     sources=opps.sources[:5],
                     actions=[{"label": "View Details", "action_type": "expand", "params": {}}],
+                    logic_explanation=f"Fetched Salesforce Opportunities (up to 15), Contacts (up to 10), and Account Info for {account_name}. Sent this data to an LLM which analyzed each deal's stage, amount, probability, and next steps, then scored risk levels. None of the {len(deals)} deals were scored as 'high' or 'critical' risk, so the pipeline is considered healthy.",
                 ))
 
             if strategy.get("quick_wins"):
@@ -175,6 +178,7 @@ class DealStrategistAgent(BaseAgent):
                     summary="; ".join(strategy["quick_wins"][:3]),
                     detail={"quick_wins": strategy["quick_wins"]},
                     actions=[],
+                    logic_explanation=f"As part of the LLM-driven pipeline analysis for {account_name}, the model identified {len(strategy['quick_wins'])} low-effort, high-impact opportunities ('quick wins') based on deal stages, amounts, and next steps from Salesforce Opportunity data.",
                 ))
         else:
             self._fallback_analysis(insights, account_name, opps, ctx)
@@ -196,6 +200,7 @@ class DealStrategistAgent(BaseAgent):
                 summary=f"{account_name} has {len(stalled)} open opportunities with no defined next step.",
                 detail={"stalled_deals": stalled[:5]},
                 sources=opps.sources[:5],
+                logic_explanation=f"LLM analysis was unavailable, so a rule-based fallback was used. Checked the NextStep field on all Salesforce Opportunities for {account_name} where StageName is not 'Closed Won' or 'Closed Lost'. Found {len(stalled)} open deal(s) with an empty or missing NextStep field, which may indicate stalled deals.",
             ))
 
     async def _generate_strategy(self, account_name: str, data: dict) -> dict | None:

@@ -117,6 +117,7 @@ class AccountPulseAgent(BaseAgent):
                     summary=f"{account_name} has {len(critical)} high/critical priority support cases requiring attention.",
                     detail={"critical_cases": critical[:5], "data_receipt": data_receipt},
                     sources=cases.sources[:5],
+                    logic_explanation=f"Queried Salesforce Cases where Account.Name matches and CreatedDate is within the last {days} days. Filtered for cases with Priority = 'Critical' or 'High' AND Status is not 'Closed' or 'Resolved'. Found {len(critical)} matching cases.",
                     actions=[
                         {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
                         {"label": "Generate Health Brief", "action_type": "generate_briefing",
@@ -137,6 +138,7 @@ class AccountPulseAgent(BaseAgent):
                     summary=f"{account_name} has {case_open_count} open and {case_closed_count} closed cases in the last {days} days.",
                     detail={"open_count": case_open_count, "closed_count": case_closed_count, "data_receipt": data_receipt},
                     sources=cases.sources[:3],
+                    logic_explanation=f"Queried all Salesforce Cases for this account in the last {days} days. Counted cases where Status is not 'Closed' or 'Resolved'. Threshold for this alert: more than 5 open cases. Found {case_open_count} open out of {len(cases.records)} total.",
                     actions=[
                         {"label": "Run Health Brief", "action_type": "generate_briefing",
                          "params": {"account_name": account_name, "type": "internal"}},
@@ -158,6 +160,7 @@ class AccountPulseAgent(BaseAgent):
                 summary=f"{account_name} closed {won_deals} deal{'s' if won_deals != 1 else ''} in the last {days} days. Positive revenue momentum.",
                 detail={"won_deals": (won_opps.records or [])[:5], "data_receipt": data_receipt},
                 sources=won_opps.sources[:5],
+                logic_explanation=f"Queried Salesforce Opportunities where Account.Name matches, IsClosed = true, and CloseDate is within the last {days} days. Filtered for won deals (IsWon = true). Found {won_deals}.",
                 actions=[
                     {"label": "View in Salesforce", "action_type": "source_link", "params": {}},
                 ],
@@ -173,6 +176,7 @@ class AccountPulseAgent(BaseAgent):
                 summary=f"{account_name} lost {lost_deals_count} opportunity(ies) in the last {days} days. Review for pattern or competitive displacement.",
                 detail={"lost_deals": (lost_opps.records or [])[:5], "data_receipt": data_receipt},
                 sources=lost_opps.sources[:5],
+                logic_explanation=f"Queried Salesforce Opportunities where Account.Name matches, IsClosed = true, and CloseDate is within the last {days} days. Filtered for lost deals (IsWon = false). Found {lost_deals_count}.",
                 actions=[
                     {"label": "View Pipeline", "action_type": "source_link", "params": {}},
                 ],
@@ -190,6 +194,7 @@ class AccountPulseAgent(BaseAgent):
                     summary=f"{account_name} has {len(stalled)} open opportunities with no defined next step.",
                     detail={"stalled_deals": stalled[:5], "data_receipt": data_receipt},
                     sources=open_opps.sources[:5],
+                    logic_explanation=f"Queried Salesforce Opportunities where IsClosed = false. Checked each open deal for the 'NextStep' field. Deals with no NextStep value are flagged as stalled. Found {len(stalled)} out of {open_deals} open deals without a next step.",
                     actions=[
                         {"label": "View Pipeline", "action_type": "source_link", "params": {}},
                     ],
@@ -207,6 +212,7 @@ class AccountPulseAgent(BaseAgent):
                 summary=f"{account_name} has {'no' if activity_count == 0 else 'only ' + str(activity_count)} recorded activit{'ies' if activity_count != 1 else 'y'} in the last {days} days. Consider scheduling outreach.",
                 detail={"activity_count": activity_count, "data_receipt": data_receipt},
                 sources=activities.sources,
+                logic_explanation=f"Queried Salesforce Tasks/Activities where Account.Name matches and CreatedDate is within the last {days} days (limit 50). Threshold for this alert: fewer than 2 activities. Found {activity_count}. This counts logged calls, emails, meetings, and tasks in Salesforce.",
                 actions=[
                     {"label": "Prep Meeting", "action_type": "run_agent",
                      "params": {"agent": "meeting_prep", "account": account_name}},
@@ -250,6 +256,7 @@ class AccountPulseAgent(BaseAgent):
                 summary=summary_text,
                 detail={"data_receipt": data_receipt},
                 sources=all_sources[:5],
+                logic_explanation=f"Ran 5 Salesforce queries (Cases, Open Opps, Closed-Won, Closed-Lost, Activities) for the last {days} days. None of the alert thresholds were triggered: no critical/high cases open, fewer than 5 open cases, no lost deals, no stalled deals (all have NextStep), and 2+ activities logged.",
                 actions=[
                     {"label": "Generate Full Brief", "action_type": "generate_briefing",
                      "params": {"account_name": account_name, "type": "internal"}},

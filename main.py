@@ -167,6 +167,7 @@ def init_db():
     user_scope_migrations = [
         "ALTER TABLE insights ADD COLUMN user_id TEXT DEFAULT 'default'",
         "ALTER TABLE briefing_results ADD COLUMN user_id TEXT DEFAULT 'default'",
+        "ALTER TABLE insights ADD COLUMN logic_explanation TEXT DEFAULT ''",
     ]
     for m in user_scope_migrations:
         try:
@@ -441,15 +442,15 @@ def save_insight(card: InsightCard, user_id: str = "default"):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT OR REPLACE INTO insights (id, agent_instance_id, agent_blueprint_id, account_id, account_name,
-            priority, title, summary, detail_json, sources_json, actions_json, status, created_at, expires_at, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            priority, title, summary, detail_json, sources_json, actions_json, logic_explanation, status, created_at, expires_at, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         card.id, card.agent_instance_id, card.agent_blueprint_id,
         card.account_id, card.account_name,
         card.priority.value if isinstance(card.priority, Priority) else card.priority,
         card.title, card.summary,
         json.dumps(card.detail), json.dumps([s.to_dict() for s in card.sources]),
-        json.dumps(card.actions),
+        json.dumps(card.actions), card.logic_explanation,
         card.status.value if isinstance(card.status, InsightStatus) else card.status,
         card.created_at, card.expires_at, user_id,
     ))
@@ -494,6 +495,7 @@ def _row_to_insight(row) -> dict:
         "detail": _safe_json(row["detail_json"], {}),
         "sources": _safe_json(row["sources_json"], []),
         "actions": _safe_json(row["actions_json"], []),
+        "logic_explanation": _safe_col(row, "logic_explanation", ""),
         "status": row["status"],
         "created_at": row["created_at"],
         "expires_at": row["expires_at"],

@@ -77,6 +77,7 @@ class NewsMonitorAgent(BaseAgent):
                             {"label": "Read Article", "action_type": "external_link",
                              "params": {"url": article.url}},
                         ],
+                        logic_explanation=f"Searched Google News RSS feed for the company name '{account_name}'. Retrieved up to {max_per} recent articles matching the search term. This article was published by {article.source or 'an unknown source'} and matched the account name query. No Salesforce data was used — this is based entirely on public news feeds.",
                     ))
 
             except Exception as e:

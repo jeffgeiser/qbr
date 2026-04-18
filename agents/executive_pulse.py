@@ -134,6 +134,7 @@ class ExecutivePulseAgent(BaseAgent):
             summary=f"{portfolio_stats['total_accounts']} accounts tracked across {len(portfolio_stats['tier_breakdown'])} tiers. {portfolio_stats['total_pipeline_deals']} active pipeline deals.",
             detail=portfolio_stats,
             actions=[],
+            logic_explanation=f"Aggregated health data across all {portfolio_stats['total_accounts']} accounts in focus tiers ({', '.join(focus_tiers)}). Each account's healthSentiment field was read from the local accounts database and categorized as green/yellow/red. Salesforce Cases, Opportunities, Activities, and Closed-Lost Opportunities were queried per account over the last {context.time_range_days} days to build the full portfolio picture.",
         ))
 
         # Critical case exceptions
@@ -149,6 +150,7 @@ class ExecutivePulseAgent(BaseAgent):
                 summary="; ".join(f"{a['name']} ({a['critical_count']})" for a in critical_accts[:5]),
                 detail={"accounts": critical_accts},
                 actions=[],
+                logic_explanation=f"For each of the {portfolio_stats['total_accounts']} accounts in focus tiers ({', '.join(focus_tiers)}), queried Salesforce Cases over the last {context.time_range_days} days. Filtered for cases where Priority is 'Critical' or 'High' AND Status is not 'Closed' or 'Resolved'. {len(critical_accts)} account(s) had at least one matching case.",
             ))
 
         # Engagement gaps — accounts no one is touching
@@ -164,6 +166,7 @@ class ExecutivePulseAgent(BaseAgent):
                 summary="; ".join(f"{a['name']} (owner: {a['owner']})" for a in tier1_inactive),
                 detail={"inactive_tier1": tier1_inactive, "all_inactive": inactive},
                 actions=[],
+                logic_explanation=f"Queried Salesforce Activities for each Tier 1 account over the last {context.time_range_days} days. Accounts with fewer than 2 activity records are flagged as having no recent engagement. {len(tier1_inactive)} Tier 1 account(s) fell below this threshold. This is elevated to High priority because Tier 1 accounts are your most strategic customers.",
             ))
         elif inactive:
             insights.append(InsightCard(
@@ -175,6 +178,7 @@ class ExecutivePulseAgent(BaseAgent):
                 summary="; ".join(f"{a['name']}" for a in inactive[:5]),
                 detail={"inactive": inactive},
                 actions=[],
+                logic_explanation=f"Queried Salesforce Activities for each account in focus tiers ({', '.join(focus_tiers)}) over the last {context.time_range_days} days. Accounts with fewer than 2 activity records are flagged as having low engagement. {len(inactive)} non-Tier 1 account(s) fell below this threshold. No Tier 1 accounts were affected, so this is reported at Medium priority.",
             ))
 
         # Lost deal trend
@@ -190,6 +194,7 @@ class ExecutivePulseAgent(BaseAgent):
                 summary="; ".join(f"{a['name']} ({a['lost_count']} lost)" for a in lost_accts[:5]),
                 detail={"accounts_with_losses": lost_accts},
                 actions=[],
+                logic_explanation=f"Queried Salesforce Opportunities with status 'Closed Lost' for each account in focus tiers ({', '.join(focus_tiers)}) over the last {context.time_range_days} days. {len(lost_accts)} account(s) had at least one closed-lost deal, totaling {total_lost} lost deal(s) across the portfolio.",
             ))
 
         # Push to Teams if configured
