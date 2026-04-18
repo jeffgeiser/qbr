@@ -1106,6 +1106,23 @@ async def toggle_agent_instance(request: Request, instance_id: str):
     return JSONResponse({"status": new_status})
 
 
+@app.patch("/api/agents/{instance_id}/config")
+async def update_agent_config(request: Request, instance_id: str):
+    user = _api_user(request)
+    uid = user["id"] if user else "default"
+    inst = get_agent_instance(instance_id)
+    if not inst or inst["user_id"] != uid:
+        return JSONResponse({"error": "Instance not found"}, status_code=404)
+
+    body = await request.json()
+    if "config" in body:
+        inst["config"] = {**inst.get("config", {}), **body["config"]}
+    if "schedule" in body:
+        inst["schedule"] = body["schedule"]
+    save_agent_instance(inst)
+    return JSONResponse({"updated": True, "config": inst["config"], "schedule": inst["schedule"]})
+
+
 @app.delete("/api/agents/{instance_id}")
 async def deactivate_agent(request: Request, instance_id: str):
     user = _api_user(request)
