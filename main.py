@@ -1144,6 +1144,39 @@ async def update_agent_config(request: Request, instance_id: str):
     if "schedule" in body:
         inst["schedule"] = body["schedule"]
     save_agent_instance(inst)
+
+    # Reschedule if schedule changed
+    try:
+        from services.scheduler import schedule_agent_instance, unschedule_agent_instance
+        unschedule_agent_instance(instance_id)
+        if inst["schedule"] != "manual":
+            async def _run_scheduled():
+                agent = registry.create_agent(inst["blueprint_id"])
+                if not agent:
+                    return
+                accounts = get_all_accounts()
+                must_win = get_must_win_accounts(user_id=uid)
+                ctx = AgentContext(
+                    account_names=[a["name"] for a in accounts],
+                    config=inst.get("config", {}),
+                    time_range_days=inst.get("config", {}).get("days", 90),
+                    must_win_accounts=must_win,
+                    instance_id=instance_id,
+                )
+                result = await agent.run(ctx)
+                for card in result.insights:
+                    card.agent_instance_id = instance_id
+                    save_insight(card, user_id=uid)
+
+            schedule_config = {
+                "schedule": inst["schedule"],
+                "schedule_day": inst["config"].get("schedule_day", "mon"),
+                "schedule_time": inst["config"].get("schedule_time", "08:00"),
+            }
+            schedule_agent_instance(instance_id, schedule_config, _run_scheduled)
+    except Exception as e:
+        logger.warning(f"Could not reschedule agent: {e}")
+
     return JSONResponse({"updated": True, "config": inst["config"], "schedule": inst["schedule"]})
 
 
