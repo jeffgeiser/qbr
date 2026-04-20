@@ -17,6 +17,9 @@ services:
       - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}
       - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET:-}
       - SALESFORCE_INSTANCE_URL=${SALESFORCE_INSTANCE_URL:-}
+      # Teams / webhook integration (optional)
+      - TEAMS_WEBHOOK_URL=${TEAMS_WEBHOOK_URL:-}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
 
 volumes:

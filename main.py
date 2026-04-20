@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import List, Optional, Dict
@@ -9,6 +9,10 @@ import uuid
 import sqlite3
 import os
 import logging
+import asyncio
+import hmac
+import hashlib
+import base64
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -594,6 +598,295 @@ async def briefing_result_page(account_id: str, briefing_type: str, result_id: O
         generated_date=generated_date,
         time_range_days=result["time_range_days"],
         active_nav=active,
+    )
+
+
+# --- Teams Webhook Integration ---
+
+async def generate_briefing_sync(briefing_type: str, user_message: str) -> dict | None:
+    """Run the briefing generator and collect the final result (non-streaming)."""
+    try:
+        from services.briefing_generator import generate_briefing_stream, _extract_briefing_json
+        result_json = None
+        async for sse_line in generate_briefing_stream(briefing_type, user_message):
+            if "briefing_ready" in sse_line:
+                data = json.loads(sse_line.replace("data: ", "").strip())
+                return {
+                    "result_id": data.get("result_id"),
+                    "account_id": data.get("account_id"),
+                }
+        return None
+    except Exception as e:
+        logger.error(f"Sync briefing generation failed: {e}")
+        return None
+
+
+def format_adaptive_card(briefing: dict, account_name: str, briefing_type: str, result_url: str = "") -> dict:
+    """Format a briefing as a Teams Adaptive Card."""
+    card_body = []
+
+    # Header
+    card_body.append({
+        "type": "TextBlock",
+        "size": "Large",
+        "weight": "Bolder",
+        "text": f"{'Internal Health Brief' if briefing_type == 'internal' else 'Customer QBR'} — {account_name}",
+    })
+
+    # Executive snapshot / summary
+    snapshot = briefing.get("executive_snapshot") or briefing.get("executive_summary", "")
+    if snapshot:
+        card_body.append({
+            "type": "TextBlock",
+            "text": snapshot,
+            "wrap": True,
+            "spacing": "Medium",
+        })
+
+    # Revenue picture
+    rev = briefing.get("revenue_picture", {})
+    if rev:
+        pipeline = rev.get("total_pipeline_value", "N/A")
+        at_risk = rev.get("revenue_at_risk", "N/A")
+        card_body.append({
+            "type": "ColumnSet",
+            "spacing": "Medium",
+            "columns": [
+                {"type": "Column", "width": "stretch", "items": [
+                    {"type": "TextBlock", "text": "PIPELINE", "size": "Small", "color": "Accent", "weight": "Bolder"},
+                    {"type": "TextBlock", "text": str(pipeline), "size": "ExtraLarge", "weight": "Bolder"},
+                ]},
+                {"type": "Column", "width": "stretch", "items": [
+                    {"type": "TextBlock", "text": "AT RISK", "size": "Small", "color": "Attention", "weight": "Bolder"},
+                    {"type": "TextBlock", "text": str(at_risk) if at_risk else "None", "size": "ExtraLarge", "weight": "Bolder", "color": "Attention"},
+                ]},
+            ]
+        })
+
+        # Active pipeline deals
+        for opp in rev.get("active_pipeline", [])[:5]:
+            card_body.append({
+                "type": "TextBlock",
+                "text": f"**{opp.get('name', 'Deal')}** — {opp.get('amount', 'N/A')} ({opp.get('stage', '')})",
+                "wrap": True,
+                "spacing": "Small",
+            })
+
+    # Support tickets summary
+    engagement = briefing.get("engagement_activity", {})
+    tickets = engagement.get("support_tickets", {})
+    if tickets:
+        open_count = tickets.get("open_count", 0)
+        closed_count = tickets.get("closed_count", 0)
+        trend = tickets.get("trend", "unknown")
+        card_body.append({
+            "type": "TextBlock",
+            "text": f"**Support:** {open_count} open / {closed_count} closed — Trend: {trend}",
+            "wrap": True,
+            "spacing": "Medium",
+        })
+
+    # Strategic risks
+    risks = briefing.get("strategic_risks", [])
+    if risks:
+        card_body.append({
+            "type": "TextBlock",
+            "text": "RISKS & RED FLAGS",
+            "size": "Small",
+            "weight": "Bolder",
+            "color": "Attention",
+            "spacing": "Medium",
+        })
+        for risk in risks[:3]:
+            severity = risk.get("severity", "info").upper()
+            card_body.append({
+                "type": "TextBlock",
+                "text": f"[{severity}] **{risk.get('title', '')}** — {risk.get('description', '')}",
+                "wrap": True,
+                "spacing": "Small",
+            })
+
+    # Recommended actions
+    actions = briefing.get("recommended_actions", [])
+    if actions:
+        card_body.append({
+            "type": "TextBlock",
+            "text": "RECOMMENDED ACTIONS",
+            "size": "Small",
+            "weight": "Bolder",
+            "spacing": "Medium",
+        })
+        for i, action in enumerate(actions[:5], 1):
+            priority = f"[{action.get('priority', 'normal').upper()}] " if action.get('priority') in ('urgent', 'high') else ""
+            card_body.append({
+                "type": "TextBlock",
+                "text": f"{i}. {priority}**{action.get('action', '')}**",
+                "wrap": True,
+                "spacing": "Small",
+            })
+
+    # Health scorecard as compact line
+    scorecard = briefing.get("health_scorecard", [])
+    if scorecard:
+        scores = " | ".join([f"{s.get('label', '')}: {s.get('score', '?')}/5" for s in scorecard])
+        card_body.append({
+            "type": "TextBlock",
+            "text": f"**Scorecard:** {scores}",
+            "wrap": True,
+            "spacing": "Medium",
+            "size": "Small",
+        })
+
+    card = {
+        "type": "message",
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": card_body,
+            }
+        }]
+    }
+
+    # Add "View Full Report" button if URL provided
+    if result_url:
+        card["attachments"][0]["content"]["actions"] = [{
+            "type": "Action.OpenUrl",
+            "title": "View Full Report",
+            "url": result_url,
+        }]
+
+    return card
+
+
+async def process_teams_briefing(
+    account_name: str, briefing_type: str, webhook_url: str, base_url: str
+):
+    """Background task: generate briefing and post result back to Teams."""
+    import httpx
+
+    result = await generate_briefing_sync(briefing_type, account_name)
+    if not result:
+        async with httpx.AsyncClient() as client:
+            await client.post(webhook_url, json={
+                "type": "message",
+                "text": f"Failed to generate {briefing_type} briefing for {account_name}. Please try again.",
+            })
+        return
+
+    # Fetch the saved briefing
+    briefing_data = get_briefing_result(result["result_id"])
+    if not briefing_data or not briefing_data.get("result"):
+        async with httpx.AsyncClient() as client:
+            await client.post(webhook_url, json={
+                "type": "message",
+                "text": f"Briefing generated but could not be retrieved. ID: {result['result_id']}",
+            })
+        return
+
+    result_url = f"{base_url}/qbr/briefings/{result['account_id']}/{briefing_type}?result_id={result['result_id']}"
+    card = format_adaptive_card(briefing_data["result"], account_name, briefing_type, result_url)
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(webhook_url, json=card)
+        logger.info(f"Teams webhook callback: {resp.status_code}")
+
+
+@app.post("/api/webhook/teams")
+async def teams_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Teams Outgoing Webhook handler.
+
+    Expects messages like:
+      @QBR zoom internal
+      @QBR spacex customer 30 days
+      @QBR nvidia
+
+    Responds immediately with "Working on it..." then posts the briefing
+    back to the channel via the replyToId webhook URL.
+    """
+    body = await request.json()
+    text = body.get("text", "").strip()
+    # Teams prepends the bot mention as HTML — strip it
+    import re
+    text = re.sub(r'<at>.*?</at>\s*', '', text).strip()
+
+    if not text:
+        return JSONResponse({"type": "message", "text": "Usage: @QBR <account name> [internal|customer] [N days]"})
+
+    # Parse: account name, optional type, optional days
+    parts = text.split()
+    briefing_type = "internal"
+    account_parts = []
+
+    for part in parts:
+        lower = part.lower()
+        if lower in ("internal", "customer"):
+            briefing_type = lower
+        elif re.match(r'^\d+$', part):
+            pass  # days number, handled by LLM
+        elif lower == "days":
+            pass
+        else:
+            account_parts.append(part)
+
+    account_name = " ".join(account_parts) if account_parts else text
+
+    # Get the webhook URL for posting back
+    service_url = body.get("serviceUrl", "")
+    conversation_id = body.get("conversation", {}).get("id", "")
+    activity_id = body.get("id", "")
+    webhook_url = os.environ.get("TEAMS_WEBHOOK_URL", "")
+    base_url = os.environ.get("APP_BASE_URL", "http://localhost:8000")
+
+    if webhook_url:
+        background_tasks.add_task(
+            process_teams_briefing, account_name, briefing_type, webhook_url, base_url
+        )
+
+    return JSONResponse({
+        "type": "message",
+        "text": f"Generating {briefing_type} briefing for **{account_name}**... I'll post the results here when ready.",
+    })
+
+
+@app.post("/api/webhook/generic")
+async def generic_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Generic webhook for any integration (Slack, custom tools, etc).
+
+    POST JSON:
+    {
+        "account_name": "Zoom",
+        "briefing_type": "internal",
+        "callback_url": "https://your-webhook-url",
+        "base_url": "https://your-app-url"
+    }
+
+    Responds immediately with 202, then POSTs the Adaptive Card to callback_url.
+    """
+    body = await request.json()
+    account_name = body.get("account_name", "").strip()
+    briefing_type = body.get("briefing_type", "internal")
+    callback_url = body.get("callback_url", "")
+    base_url = body.get("base_url", os.environ.get("APP_BASE_URL", "http://localhost:8000"))
+
+    if not account_name:
+        return JSONResponse({"error": "account_name is required"}, status_code=400)
+    if briefing_type not in ("internal", "customer"):
+        return JSONResponse({"error": "briefing_type must be 'internal' or 'customer'"}, status_code=400)
+    if not callback_url:
+        return JSONResponse({"error": "callback_url is required"}, status_code=400)
+
+    background_tasks.add_task(
+        process_teams_briefing, account_name, briefing_type, callback_url, base_url
+    )
+
+    return JSONResponse(
+        {"status": "accepted", "message": f"Generating {briefing_type} briefing for {account_name}"},
+        status_code=202,
     )
 
 

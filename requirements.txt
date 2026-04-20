@@ -3,4 +3,5 @@ uvicorn
 jinja2
 python-multipart
 openai
+httpx
 mcp>=1.25,<2
