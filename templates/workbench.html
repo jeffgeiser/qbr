@@ -116,6 +116,16 @@
                                 x-text="inst.status === 'paused' ? 'Resume' : 'Pause'">
                         </button>
                     </div>
+                    <!-- Inline run status -->
+                    <template x-if="runStatus[inst.id]">
+                        <div class="mt-1.5 text-xs flex items-center space-x-1"
+                             :class="runStatus[inst.id].loading ? 'text-blue-600' : runStatus[inst.id].ok ? 'text-emerald-600' : 'text-red-600'">
+                            <template x-if="runStatus[inst.id].loading">
+                                <svg class="w-3 h-3 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            </template>
+                            <span x-text="runStatus[inst.id].message" class="truncate max-w-[160px]"></span>
+                        </div>
+                    </template>
                 </div>
             </template>
 
@@ -468,6 +478,7 @@ function workbench() {
         feedFilter: 'all',
         feedLoading: false,
         showAgentPanel: false,
+        runStatus: {},
         configModal: { open: false, instanceId: '', name: '', config: {}, schedule: 'manual' },
 
         async init() {
@@ -587,23 +598,40 @@ function workbench() {
         async runAgentInstance(instanceId) {
             const inst = this.instances.find(i => i.id === instanceId);
             if (inst) inst.status = 'running';
+            this.runStatus[instanceId] = { loading: true, ok: null, message: 'Running…' };
 
             try {
                 const r = await fetch(`/qbr/api/agents/${instanceId}/run`, { method: 'POST' });
                 const data = await r.json();
+
                 if (data.error) {
+                    this.runStatus[instanceId] = { loading: false, ok: false, message: data.error };
                     this.commandEvents = [{ type: 'error', message: data.error }];
                 } else if (data.errors && data.errors.length > 0) {
+                    const msg = data.errors[0];
+                    this.runStatus[instanceId] = { loading: false, ok: false, message: msg };
                     this.commandEvents = data.errors.map(e => ({ type: 'error', message: e }));
+                } else if (data.insight_count > 0) {
+                    const msg = `${data.insight_count} insight${data.insight_count !== 1 ? 's' : ''} generated`;
+                    this.runStatus[instanceId] = { loading: false, ok: true, message: msg };
+                    this.commandEvents = [{ type: 'complete', message: msg }];
+                } else {
+                    this.runStatus[instanceId] = { loading: false, ok: true, message: 'Run complete — feed updated' };
+                    this.commandEvents = [{ type: 'complete', message: 'Run complete — feed updated' }];
                 }
-                if (data.insight_count > 0) {
-                    this.commandEvents = [{ type: 'complete', message: `${data.insight_count} insight${data.insight_count !== 1 ? 's' : ''} generated` }];
-                }
+
                 await this.loadFeed();
             } catch (e) {
-                this.commandEvents = [{ type: 'error', message: `Agent run failed: ${e.message}` }];
+                const msg = `Agent run failed: ${e.message}`;
+                this.runStatus[instanceId] = { loading: false, ok: false, message: msg };
+                this.commandEvents = [{ type: 'error', message: msg }];
                 console.error('Failed to run agent', e);
             }
+
+            // Auto-clear the inline status after 8s
+            setTimeout(() => {
+                delete this.runStatus[instanceId];
+            }, 8000);
 
             await this.loadInstances();
         },

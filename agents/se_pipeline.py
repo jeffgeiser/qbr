@@ -73,42 +73,83 @@ class SEPipelineAgent(BaseAgent):
             if not client.is_connected:
                 return AgentResult(success=False, errors=["Salesforce not connected"])
 
-            opp_fields = [
+            # Base fields that always exist — custom fields added separately
+            base_fields = [
                 "Id", "Name", "StageName", "Amount", "CloseDate", "Probability",
                 "Type", "NextStep", "IsClosed", "IsWon",
                 "Account.Name", "Owner.Name",
-                poc_field, se_field, mrr_field,
             ]
+            custom_fields = [poc_field, se_field, mrr_field]
+            opp_fields = base_fields + custom_fields
 
             # 1. Active POCs
-            poc_raw = await client._query(
-                "Opportunity", opp_fields,
-                where=f"{poc_field} != null AND IsClosed = false",
-                order_by=f"{se_field}, Account.Name",
-            )
-            poc_records = client._parse_text_records(poc_raw)
+            poc_records: list[dict] = []
+            try:
+                poc_raw = await client._query(
+                    "Opportunity", opp_fields,
+                    where=f"{poc_field} != null AND IsClosed = false",
+                    order_by=f"{se_field}, Account.Name",
+                )
+                poc_records = client._parse_text_records(poc_raw)
+            except Exception as e:
+                err_str = str(e)
+                if "No such column" in err_str or "invalid field" in err_str.lower():
+                    errors.append(
+                        f"Custom field '{poc_field}' not found in Salesforce. "
+                        f"Update poc_status_field in Config to the correct API name. (Error: {err_str})"
+                    )
+                else:
+                    errors.append(f"POC query failed: {err_str}")
+                logger.warning(f"SE Pipeline POC query failed: {e}")
 
             # 2. Pipeline closing in forecast window
             forecast_date = (datetime.utcnow() + timedelta(days=forecast_days)).strftime("%Y-%m-%d")
-            pipeline_raw = await client._query(
-                "Opportunity", opp_fields,
-                where=f"IsClosed = false AND CloseDate <= {forecast_date}",
-                order_by=f"{se_field}, CloseDate",
-            )
-            pipeline_records = client._parse_text_records(pipeline_raw)
+            pipeline_records: list[dict] = []
+            try:
+                pipeline_raw = await client._query(
+                    "Opportunity", opp_fields,
+                    where=f"IsClosed = false AND CloseDate <= {forecast_date}",
+                    order_by=f"{se_field}, CloseDate",
+                )
+                pipeline_records = client._parse_text_records(pipeline_raw)
+            except Exception as e:
+                err_str = str(e)
+                if "No such column" in err_str or "invalid field" in err_str.lower():
+                    # Retry without custom fields so we at least get pipeline data
+                    try:
+                        pipeline_raw = await client._query(
+                            "Opportunity", base_fields,
+                            where=f"IsClosed = false AND CloseDate <= {forecast_date}",
+                            order_by="CloseDate",
+                        )
+                        pipeline_records = client._parse_text_records(pipeline_raw)
+                        errors.append(
+                            f"Custom fields ({se_field}, {mrr_field}) not found — showing pipeline without SE/MRR grouping. "
+                            f"Update field names in Config."
+                        )
+                    except Exception as e2:
+                        errors.append(f"Pipeline query failed: {e2}")
+                else:
+                    errors.append(f"Pipeline query failed: {err_str}")
+                logger.warning(f"SE Pipeline pipeline query failed: {e}")
 
             # 3. Recently closed-won
             since = (datetime.utcnow() - timedelta(days=recent_days)).strftime("%Y-%m-%d")
-            won_raw = await client._query(
-                "Opportunity", opp_fields,
-                where=f"IsClosed = true AND IsWon = true AND CloseDate >= {since}",
-                order_by=f"{se_field}, CloseDate DESC",
-            )
-            won_records = client._parse_text_records(won_raw)
+            won_records: list[dict] = []
+            try:
+                won_raw = await client._query(
+                    "Opportunity", opp_fields,
+                    where=f"IsClosed = true AND IsWon = true AND CloseDate >= {since}",
+                    order_by=f"{se_field}, CloseDate DESC",
+                )
+                won_records = client._parse_text_records(won_raw)
+            except Exception as e:
+                logger.warning(f"SE Pipeline won query failed: {e}")
+                errors.append(f"Won deals query failed: {e}")
 
         except Exception as e:
-            logger.error(f"SE Pipeline query failed: {e}", exc_info=True)
-            return AgentResult(success=False, errors=[f"Salesforce query failed: {e}"])
+            logger.error(f"SE Pipeline setup failed: {e}", exc_info=True)
+            return AgentResult(success=False, errors=[f"Salesforce error: {e}"])
 
         sf_url = os.environ.get("SALESFORCE_INSTANCE_URL", "").rstrip("/")
 
