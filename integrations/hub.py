@@ -54,11 +54,12 @@ class IntegrationHub:
         return statuses
 
     def get_all_statuses(self) -> list[dict]:
-        return [
-            {"name": c.name, "capabilities": c.capabilities,
-             "connected": getattr(c, '_client', None) is not None}
-            for c in self._connectors.values()
-        ]
+        result = []
+        for c in self._connectors.values():
+            client = getattr(c, '_client', None)
+            connected = bool(client and getattr(client, 'is_connected', False))
+            result.append({"name": c.name, "capabilities": c.capabilities, "connected": connected})
+        return result
 
 
 hub = IntegrationHub()

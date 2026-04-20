@@ -79,7 +79,25 @@
     <!-- Active Agents Bar -->
     <div class="mb-8">
         <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Active Agents</h2>
+            <div class="flex items-center space-x-3">
+                <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Active Agents</h2>
+                <!-- Salesforce connection badge -->
+                <template x-if="sfStatus !== null">
+                    <div class="flex items-center space-x-1.5 text-xs">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0"
+                              :class="sfStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                        <span :class="sfStatus === 'connected' ? 'text-slate-500' : 'text-amber-600'"
+                              x-text="sfStatus === 'connected' ? 'Salesforce' : 'Salesforce disconnected'"></span>
+                        <template x-if="sfStatus !== 'connected'">
+                            <button @click="reconnectSalesforce()"
+                                    :disabled="sfReconnecting"
+                                    class="text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-40 ml-1"
+                                    x-text="sfReconnecting ? 'Connecting…' : 'Reconnect'">
+                            </button>
+                        </template>
+                    </div>
+                </template>
+            </div>
             <button @click="showAgentPanel = !showAgentPanel"
                     class="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
                 <span x-text="showAgentPanel ? 'Close' : 'Manage Agents'"></span>
@@ -479,6 +497,8 @@ function workbench() {
         feedLoading: false,
         showAgentPanel: false,
         runStatus: {},
+        sfStatus: null,
+        sfReconnecting: false,
         configModal: { open: false, instanceId: '', name: '', config: {}, schedule: 'manual' },
 
         async init() {
@@ -486,7 +506,36 @@ function workbench() {
                 this.loadBlueprints(),
                 this.loadInstances(),
                 this.loadFeed(),
+                this.checkSfStatus(),
             ]);
+        },
+
+        async checkSfStatus() {
+            try {
+                const r = await fetch('/qbr/api/integrations/status');
+                const data = await r.json();
+                const sf = data.find ? data.find(s => s.name === 'salesforce') : null;
+                this.sfStatus = sf?.connected ? 'connected' : 'disconnected';
+            } catch (e) {
+                this.sfStatus = 'disconnected';
+            }
+        },
+
+        async reconnectSalesforce() {
+            this.sfReconnecting = true;
+            try {
+                const r = await fetch('/qbr/api/integrations/salesforce/connect', { method: 'POST' });
+                const data = await r.json();
+                if (data.status === 'connected' || data.status === 'already_connected') {
+                    this.sfStatus = 'connected';
+                    this.commandEvents = [{ type: 'complete', message: 'Salesforce connected' }];
+                } else {
+                    this.commandEvents = [{ type: 'error', message: data.message || 'Connection failed' }];
+                }
+            } catch (e) {
+                this.commandEvents = [{ type: 'error', message: `Reconnect failed: ${e.message}` }];
+            }
+            this.sfReconnecting = false;
         },
 
         // --- Data loading ---

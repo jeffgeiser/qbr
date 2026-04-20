@@ -1333,6 +1333,22 @@ async def integrations_status():
     return JSONResponse(hub.get_all_statuses())
 
 
+@app.post("/api/integrations/salesforce/connect")
+async def reconnect_salesforce():
+    """Attempt (or re-attempt) Salesforce MCP connection."""
+    try:
+        from services.salesforce_mcp import salesforce_client
+        if salesforce_client.is_connected:
+            return JSONResponse({"status": "already_connected"})
+        if not os.environ.get("SALESFORCE_CLIENT_ID"):
+            return JSONResponse({"status": "error", "message": "SALESFORCE_CLIENT_ID not configured"}, status_code=400)
+        await salesforce_client.connect()
+        return JSONResponse({"status": "connected"})
+    except Exception as e:
+        logger.error(f"Salesforce reconnect failed: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
