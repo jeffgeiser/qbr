@@ -1,9 +1,9 @@
 """
 Agent Scheduler - runs agent instances on their configured schedules.
 
-Uses APScheduler for lightweight cron-style scheduling within the
-FastAPI process. Each active agent instance with a non-manual schedule
-gets a periodic job that triggers its run() method.
+Supports cron-style scheduling: pick a frequency (daily/weekly),
+a day of week (for weekly), and a time of day. Uses APScheduler
+CronTrigger for precise scheduling.
 """
 
 import logging
@@ -41,15 +41,8 @@ async def stop_scheduler():
         logger.info("Agent scheduler stopped")
 
 
-SCHEDULE_INTERVALS = {
-    "hourly": {"hours": 1},
-    "daily": {"hours": 24},
-    "weekly": {"weeks": 1},
-}
-
-
-def schedule_agent_instance(instance_id: str, schedule: str, run_fn):
-    """Add or update a scheduled job for an agent instance."""
+def schedule_agent_instance(instance_id: str, config: dict, run_fn):
+    """Schedule an agent using config: schedule, schedule_day, schedule_time."""
     scheduler = get_scheduler()
     if not scheduler:
         return
@@ -60,20 +53,58 @@ def schedule_agent_instance(instance_id: str, schedule: str, run_fn):
     if existing:
         scheduler.remove_job(job_id)
 
-    if schedule == "manual" or schedule not in SCHEDULE_INTERVALS:
+    schedule = config.get("schedule", "manual")
+    if schedule == "manual":
         return
 
-    interval = SCHEDULE_INTERVALS[schedule]
-    scheduler.add_job(
-        run_fn,
-        "interval",
-        id=job_id,
-        **interval,
-        next_run_time=datetime.utcnow() + timedelta(minutes=1),
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
-    logger.info(f"Scheduled agent {instance_id} to run {schedule}")
+    hour, minute = _parse_time(config.get("schedule_time", "08:00"))
+    day_of_week = config.get("schedule_day", "mon")
+
+    try:
+        from apscheduler.triggers.cron import CronTrigger
+
+        if schedule == "hourly":
+            trigger = CronTrigger(minute=0)
+        elif schedule == "daily":
+            trigger = CronTrigger(hour=hour, minute=minute)
+        elif schedule == "weekly":
+            trigger = CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute)
+        else:
+            logger.warning(f"Unknown schedule type: {schedule}")
+            return
+
+        scheduler.add_job(
+            run_fn,
+            trigger,
+            id=job_id,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        label = _schedule_label(schedule, day_of_week, hour, minute)
+        logger.info(f"Scheduled agent {instance_id}: {label}")
+    except Exception as e:
+        logger.error(f"Failed to schedule agent {instance_id}: {e}")
+
+
+def _parse_time(time_str: str) -> tuple[int, int]:
+    try:
+        parts = time_str.strip().split(":")
+        return int(parts[0]) % 24, int(parts[1]) % 60
+    except (ValueError, IndexError):
+        return 8, 0
+
+
+def _schedule_label(schedule: str, day: str, hour: int, minute: int) -> str:
+    time_str = f"{hour:02d}:{minute:02d}"
+    if schedule == "hourly":
+        return "Every hour"
+    elif schedule == "daily":
+        return f"Daily at {time_str}"
+    elif schedule == "weekly":
+        day_names = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
+                     "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
+        return f"Every {day_names.get(day, day)} at {time_str}"
+    return schedule
 
 
 def unschedule_agent_instance(instance_id: str):

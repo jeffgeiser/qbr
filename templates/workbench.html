@@ -97,7 +97,7 @@
                                   :class="inst.status === 'active' ? 'bg-emerald-400' : inst.status === 'running' ? 'bg-blue-400 pulse-ring' : inst.status === 'paused' ? 'bg-amber-400' : 'bg-red-400'"></span>
                         </span>
                     </div>
-                    <div class="text-xs text-slate-500" x-text="inst.schedule === 'manual' ? 'On-demand' : 'Runs ' + inst.schedule"></div>
+                    <div class="text-xs text-slate-500" x-text="scheduleLabel(inst)"></div>
                     <div class="flex items-center space-x-2 mt-2">
                         <button @click="runAgentInstance(inst.id)"
                                 :disabled="inst.status === 'running'"
@@ -116,6 +116,16 @@
                                 x-text="inst.status === 'paused' ? 'Resume' : 'Pause'">
                         </button>
                     </div>
+                    <!-- Inline run status -->
+                    <template x-if="runStatus[inst.id]">
+                        <div class="mt-1.5 text-xs flex items-center space-x-1"
+                             :class="runStatus[inst.id].loading ? 'text-blue-600' : runStatus[inst.id].ok ? 'text-emerald-600' : 'text-red-600'">
+                            <template x-if="runStatus[inst.id].loading">
+                                <svg class="w-3 h-3 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            </template>
+                            <span x-text="runStatus[inst.id].message" class="truncate max-w-[160px]"></span>
+                        </div>
+                    </template>
                 </div>
             </template>
 
@@ -256,10 +266,39 @@
                         <select x-model="configModal.schedule"
                                 class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 outline-none bg-white">
                             <option value="manual">Manual (on-demand)</option>
+                            <option value="hourly">Hourly</option>
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
                         </select>
                     </div>
+
+                    <!-- Day of week (shown for weekly) -->
+                    <template x-if="configModal.schedule === 'weekly'">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Day of Week</label>
+                            <select x-model="configModal.config.schedule_day"
+                                    class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 outline-none bg-white">
+                                <option value="mon">Monday</option>
+                                <option value="tue">Tuesday</option>
+                                <option value="wed">Wednesday</option>
+                                <option value="thu">Thursday</option>
+                                <option value="fri">Friday</option>
+                                <option value="sat">Saturday</option>
+                                <option value="sun">Sunday</option>
+                            </select>
+                        </div>
+                    </template>
+
+                    <!-- Time of day (shown for daily/weekly) -->
+                    <template x-if="configModal.schedule === 'daily' || configModal.schedule === 'weekly'">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Time of Day</label>
+                            <input type="time"
+                                   x-model="configModal.config.schedule_time"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 outline-none">
+                            <p class="text-[10px] text-slate-400 mt-1">Server time (UTC)</p>
+                        </div>
+                    </template>
 
                     <!-- Time Range -->
                     <div>
@@ -439,6 +478,7 @@ function workbench() {
         feedFilter: 'all',
         feedLoading: false,
         showAgentPanel: false,
+        runStatus: {},
         configModal: { open: false, instanceId: '', name: '', config: {}, schedule: 'manual' },
 
         async init() {
@@ -558,14 +598,40 @@ function workbench() {
         async runAgentInstance(instanceId) {
             const inst = this.instances.find(i => i.id === instanceId);
             if (inst) inst.status = 'running';
+            this.runStatus[instanceId] = { loading: true, ok: null, message: 'Running…' };
 
             try {
                 const r = await fetch(`/qbr/api/agents/${instanceId}/run`, { method: 'POST' });
                 const data = await r.json();
-                if (data.insight_count > 0) {
-                    await this.loadFeed();
+
+                if (data.error) {
+                    this.runStatus[instanceId] = { loading: false, ok: false, message: data.error };
+                    this.commandEvents = [{ type: 'error', message: data.error }];
+                } else if (data.errors && data.errors.length > 0) {
+                    const msg = data.errors[0];
+                    this.runStatus[instanceId] = { loading: false, ok: false, message: msg };
+                    this.commandEvents = data.errors.map(e => ({ type: 'error', message: e }));
+                } else if (data.insight_count > 0) {
+                    const msg = `${data.insight_count} insight${data.insight_count !== 1 ? 's' : ''} generated`;
+                    this.runStatus[instanceId] = { loading: false, ok: true, message: msg };
+                    this.commandEvents = [{ type: 'complete', message: msg }];
+                } else {
+                    this.runStatus[instanceId] = { loading: false, ok: true, message: 'Run complete — feed updated' };
+                    this.commandEvents = [{ type: 'complete', message: 'Run complete — feed updated' }];
                 }
-            } catch (e) { console.error('Failed to run agent', e); }
+
+                await this.loadFeed();
+            } catch (e) {
+                const msg = `Agent run failed: ${e.message}`;
+                this.runStatus[instanceId] = { loading: false, ok: false, message: msg };
+                this.commandEvents = [{ type: 'error', message: msg }];
+                console.error('Failed to run agent', e);
+            }
+
+            // Auto-clear the inline status after 8s
+            setTimeout(() => {
+                delete this.runStatus[instanceId];
+            }, 8000);
 
             await this.loadInstances();
         },
@@ -587,6 +653,8 @@ function workbench() {
             };
             if (!this.configModal.config.teams_webhook_url) this.configModal.config.teams_webhook_url = '';
             if (!this.configModal.config.days) this.configModal.config.days = 90;
+            if (!this.configModal.config.schedule_day) this.configModal.config.schedule_day = 'mon';
+            if (!this.configModal.config.schedule_time) this.configModal.config.schedule_time = '08:00';
         },
 
         async saveConfig() {
@@ -654,6 +722,20 @@ function workbench() {
         priorityIcon(p) {
             const map = { critical: '!!', high: '!', medium: '~', low: '-', info: 'i' };
             return map[p] || 'i';
+        },
+
+        scheduleLabel(inst) {
+            const s = inst.schedule;
+            if (s === 'manual') return 'On-demand';
+            const time = inst.config?.schedule_time || '08:00';
+            const days = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+            if (s === 'hourly') return 'Every hour';
+            if (s === 'daily') return `Daily at ${time}`;
+            if (s === 'weekly') {
+                const day = days[inst.config?.schedule_day] || 'Mon';
+                return `${day} at ${time}`;
+            }
+            return s;
         },
     };
 }
